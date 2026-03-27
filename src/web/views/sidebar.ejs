@@ -1,0 +1,71 @@
+<aside id="sidebar" class="fixed left-0 top-0 w-64 h-screen bg-surface-low flex flex-col overflow-y-auto z-40">
+  <!-- Brand -->
+  <div class="px-5 pt-6 pb-4">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-primary-container flex items-center justify-center">
+        <svg class="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+      </div>
+      <div>
+        <h1 class="text-base font-headline font-bold text-on-bg leading-tight">AI 영상 공장</h1>
+        <p class="text-[10px] font-label tracking-widest text-on-surface-var uppercase">The Cinematic Engine</p>
+      </div>
+    </div>
+  </div>
+
+  <nav class="flex-1 px-3 pb-3 space-y-0.5">
+    <!-- 대시보드 -->
+    <a href="/" class="sidebar-link" data-path="/">
+      <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>대시보드</span>
+    </a>
+
+    <!-- 제작 -->
+    <p class="section-label">제작</p>
+    <a href="/characters" class="sidebar-link" data-path="/characters">
+      <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>캐릭터 관리</span>
+    </a>
+    <a href="/episodes" class="sidebar-link" data-path="/episodes">
+      <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      <span>에피소드 관리</span>
+    </a>
+    <a href="/video/queue" class="sidebar-link" data-path="/video/queue">
+      <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/><line x1="17" y1="17" x2="22" y2="17"/></svg>
+      <span>영상 생성 큐</span>
+    </a>
+
+    <!-- 세계 -->
+    <p class="section-label">세계</p>
+    <span class="sidebar-disabled">NPC 월드<span class="badge-soon">준비 중</span></span>
+    <span class="sidebar-disabled">장비/인벤토리<span class="badge-soon">준비 중</span></span>
+    <span class="sidebar-disabled">몬스터 도감<span class="badge-soon">준비 중</span></span>
+    <span class="sidebar-disabled">월드맵<span class="badge-soon">준비 중</span></span>
+
+    <!-- 시청자 -->
+    <p class="section-label">시청자</p>
+    <span class="sidebar-disabled">댓글/신탁<span class="badge-soon">준비 중</span></span>
+    <span class="sidebar-disabled">구독자 파워<span class="badge-soon">준비 중</span></span>
+
+    <!-- 컨텐츠 -->
+    <p class="section-label">컨텐츠</p>
+    <span class="sidebar-disabled">컨텐츠포맷<span class="badge-soon">준비 중</span></span>
+  </nav>
+
+  <!-- Bottom -->
+  <div class="px-3 py-3">
+    <a href="/settings" class="sidebar-link" data-path="/settings">
+      <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span>설정</span>
+    </a>
+  </div>
+</aside>
+
+<script>
+(function() {
+  var path = window.location.pathname;
+  document.querySelectorAll('.sidebar-link').forEach(function(el) {
+    var p = el.getAttribute('data-path');
+    if (p === path || (p !== '/' && path.startsWith(p))) el.classList.add('active');
+  });
+})();
+</script>

@@ -1,0 +1,127 @@
+<div>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">영상 생성 큐</h2>
+    <div class="flex items-center gap-2">
+      <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+      <span class="text-xs text-green-400 font-semibold">시스템 가동 중</span>
+    </div>
+  </div>
+
+  <!-- 현재 작업 카드 -->
+  <div class="bg-[#1b1b1d] rounded-lg border border-[#7c3aed]/30 p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-full font-semibold animate-pulse">렌더링 중</span>
+        <h3 class="text-lg font-semibold text-[#e5e1e4] mt-2">EP.03 — 기사단장 마르셀</h3>
+      </div>
+      <div class="text-right">
+        <p class="text-xs text-[#ccc3d8]">예상 잔여 시간</p>
+        <p class="text-xl font-bold text-[#d2bbff]">~24분</p>
+      </div>
+    </div>
+
+    <!-- 진행 상태 -->
+    <div class="space-y-4">
+      <div>
+        <div class="flex justify-between text-sm mb-1.5">
+          <span class="text-[#ccc3d8]">Pass 1 — Flux (이미지 생성)</span>
+          <span class="text-[#d2bbff] font-semibold">100%</span>
+        </div>
+        <div class="w-full bg-[#353437] rounded-full h-2">
+          <div class="h-2 rounded-full bg-green-500" style="width:100%"></div>
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between text-sm mb-1.5">
+          <span class="text-[#ccc3d8]">Pass 2 — Wan (영상 변환)</span>
+          <span class="text-[#d2bbff] font-semibold">57%</span>
+        </div>
+        <div class="w-full bg-[#353437] rounded-full h-2">
+          <div class="h-2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#d2bbff]" style="width:57%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 씬 상태 -->
+    <div class="flex items-center gap-2 mt-5">
+      <span class="text-xs text-[#ccc3d8]">씬 진행:</span>
+      <span class="w-6 h-6 bg-green-500/20 text-green-400 text-[10px] font-bold rounded flex items-center justify-center">1</span>
+      <span class="w-6 h-6 bg-green-500/20 text-green-400 text-[10px] font-bold rounded flex items-center justify-center">2</span>
+      <span class="w-6 h-6 bg-green-500/20 text-green-400 text-[10px] font-bold rounded flex items-center justify-center">3</span>
+      <span class="w-6 h-6 bg-blue-500/20 text-blue-400 text-[10px] font-bold rounded flex items-center justify-center animate-pulse">4</span>
+      <span class="w-6 h-6 bg-[#353437] text-[#ccc3d8]/40 text-[10px] font-bold rounded flex items-center justify-center">5</span>
+      <span class="w-6 h-6 bg-[#353437] text-[#ccc3d8]/40 text-[10px] font-bold rounded flex items-center justify-center">6</span>
+      <span class="w-6 h-6 bg-[#353437] text-[#ccc3d8]/40 text-[10px] font-bold rounded flex items-center justify-center">7</span>
+    </div>
+
+    <!-- GPU 사용률 -->
+    <div class="mt-5 pt-4 border-t border-[#2a2a2c]">
+      <div class="flex justify-between text-xs mb-1.5">
+        <span class="text-[#ccc3d8]">GPU 사용률</span>
+        <span class="text-[#d2bbff] font-semibold">87%</span>
+      </div>
+      <div class="w-full bg-[#353437] rounded-full h-1.5">
+        <div class="h-1.5 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#d2bbff]" style="width:87%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 대기열 테이블 -->
+  <h3 class="text-lg font-headline font-bold text-[#e5e1e4] mb-4">대기열</h3>
+  <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] overflow-hidden mb-6">
+    <table class="w-full">
+      <thead>
+        <tr class="border-b border-[#2a2a2c]">
+          <th class="text-left text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">순번</th>
+          <th class="text-left text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">에피소드</th>
+          <th class="text-left text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">씬 범위</th>
+          <th class="text-left text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">상태</th>
+          <th class="text-left text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">예상 시간</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-[#2a2a2c]">
+        <tr class="hover:bg-[#2a2a2c]/50 transition">
+          <td class="px-5 py-3 text-sm text-[#ccc3d8]">#2</td>
+          <td class="px-5 py-3 text-sm text-[#e5e1e4]">EP.01 — 이세계에 떨어진 유튜버</td>
+          <td class="px-5 py-3 text-sm text-[#ccc3d8]">씬 5~8 (재렌더)</td>
+          <td class="px-5 py-3">
+            <span class="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-semibold">대기 중</span>
+          </td>
+          <td class="px-5 py-3 text-sm text-[#ccc3d8]">~35분</td>
+        </tr>
+        <tr class="hover:bg-[#2a2a2c]/50 transition">
+          <td class="px-5 py-3 text-sm text-[#ccc3d8]">#3</td>
+          <td class="px-5 py-3 text-sm text-[#e5e1e4]">EP.04 — 마법사 리나의 비밀</td>
+          <td class="px-5 py-3 text-sm text-[#ccc3d8]">씬 1~6 (전체)</td>
+          <td class="px-5 py-3">
+            <span class="text-[10px] bg-[#353437] text-[#ccc3d8]/60 px-2 py-0.5 rounded-full font-semibold">예약됨</span>
+          </td>
+          <td class="px-5 py-3 text-sm text-[#ccc3d8]">~48분</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 시스템 상태 패널 -->
+  <h3 class="text-lg font-headline font-bold text-[#e5e1e4] mb-4">시스템 현황</h3>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="bg-[#2a2a2c] rounded-lg p-4">
+      <p class="text-xs text-[#ccc3d8] mb-1">GPU 온도</p>
+      <p class="text-xl font-bold text-[#e5e1e4]">67°C</p>
+      <p class="text-[10px] text-green-400 mt-1">정상 범위</p>
+    </div>
+    <div class="bg-[#2a2a2c] rounded-lg p-4">
+      <p class="text-xs text-[#ccc3d8] mb-1">VRAM 사용량</p>
+      <p class="text-xl font-bold text-[#e5e1e4]">18.2 / 24 GB</p>
+      <div class="w-full bg-[#353437] rounded-full h-1.5 mt-2">
+        <div class="h-1.5 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#d2bbff]" style="width:76%"></div>
+      </div>
+    </div>
+    <div class="bg-[#2a2a2c] rounded-lg p-4">
+      <p class="text-xs text-[#ccc3d8] mb-1">현재 모델</p>
+      <p class="text-sm font-bold text-[#e5e1e4]">Wan 2.1 (I2V)</p>
+      <p class="text-[10px] text-[#ccc3d8] mt-1">480p / 81 프레임</p>
+    </div>
+  </div>
+</div>

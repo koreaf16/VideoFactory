@@ -1,0 +1,93 @@
+<div>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">에피소드 관리</h2>
+    <button class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      새 에피소드 생성
+    </button>
+  </div>
+
+  <!-- 필터 탭 -->
+  <div class="flex items-center gap-1 mb-6 bg-[#1b1b1d] rounded-lg p-1 w-fit">
+    <button class="px-4 py-2 text-sm rounded-md bg-[#7c3aed] text-white font-semibold">전체</button>
+    <button class="px-4 py-2 text-sm rounded-md text-[#ccc3d8] hover:bg-[#2a2a2c] transition">초안</button>
+    <button class="px-4 py-2 text-sm rounded-md text-[#ccc3d8] hover:bg-[#2a2a2c] transition">승인됨</button>
+    <button class="px-4 py-2 text-sm rounded-md text-[#ccc3d8] hover:bg-[#2a2a2c] transition">생성 중</button>
+    <button class="px-4 py-2 text-sm rounded-md text-[#ccc3d8] hover:bg-[#2a2a2c] transition">완료</button>
+  </div>
+
+  <!-- 에피소드 테이블 -->
+  <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] overflow-hidden">
+    <table class="w-full">
+      <thead>
+        <tr class="border-b border-[#2a2a2c]">
+          <th class="text-left text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">에피소드</th>
+          <th class="text-left text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">제목</th>
+          <th class="text-left text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">씬 수</th>
+          <th class="text-left text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">상태</th>
+          <th class="text-left text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">수정일</th>
+          <th class="text-right text-xs text-[#ccc3d8]/60 font-medium px-5 py-3 uppercase tracking-wider">작업</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-[#2a2a2c]">
+        <tr class="hover:bg-[#2a2a2c]/50 transition">
+          <td class="px-5 py-4 text-sm font-semibold text-[#d2bbff]">EP.01</td>
+          <td class="px-5 py-4 text-sm text-[#e5e1e4]">이세계에 떨어진 유튜버</td>
+          <td class="px-5 py-4 text-sm text-[#ccc3d8]">8 씬</td>
+          <td class="px-5 py-4">
+            <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold bg-green-500/20 text-green-400 px-2.5 py-1 rounded-full">
+              <span class="w-1.5 h-1.5 bg-green-400 rounded-full"></span>완료
+            </span>
+          </td>
+          <td class="px-5 py-4 text-xs text-[#ccc3d8]">2024-01-20</td>
+          <td class="px-5 py-4 text-right">
+            <a href="/episodes/1/edit" class="text-xs text-[#d2bbff] hover:text-white transition">편집</a>
+          </td>
+        </tr>
+        <tr class="hover:bg-[#2a2a2c]/50 transition">
+          <td class="px-5 py-4 text-sm font-semibold text-[#d2bbff]">EP.02</td>
+          <td class="px-5 py-4 text-sm text-[#e5e1e4]">첫 번째 던전과 별이</td>
+          <td class="px-5 py-4 text-sm text-[#ccc3d8]">6 씬</td>
+          <td class="px-5 py-4">
+            <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold bg-green-500/20 text-green-400 px-2.5 py-1 rounded-full">
+              <span class="w-1.5 h-1.5 bg-green-400 rounded-full"></span>완료
+            </span>
+          </td>
+          <td class="px-5 py-4 text-xs text-[#ccc3d8]">2024-01-22</td>
+          <td class="px-5 py-4 text-right">
+            <a href="/episodes/2/edit" class="text-xs text-[#d2bbff] hover:text-white transition">편집</a>
+          </td>
+        </tr>
+        <tr class="hover:bg-[#2a2a2c]/50 transition">
+          <td class="px-5 py-4 text-sm font-semibold text-[#d2bbff]">EP.03</td>
+          <td class="px-5 py-4 text-sm text-[#e5e1e4]">기사단장 마르셀</td>
+          <td class="px-5 py-4 text-sm text-[#ccc3d8]">7 씬</td>
+          <td class="px-5 py-4">
+            <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-full">
+              <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></span>생성 중
+            </span>
+          </td>
+          <td class="px-5 py-4 text-xs text-[#ccc3d8]">2024-01-25</td>
+          <td class="px-5 py-4 text-right">
+            <a href="/episodes/3/edit" class="text-xs text-[#d2bbff] hover:text-white transition">편집</a>
+          </td>
+        </tr>
+        <tr class="hover:bg-[#2a2a2c]/50 transition">
+          <td class="px-5 py-4 text-sm font-semibold text-[#d2bbff]">EP.04</td>
+          <td class="px-5 py-4 text-sm text-[#e5e1e4]">마법사 리나의 비밀</td>
+          <td class="px-5 py-4 text-sm text-[#ccc3d8]">-- 씬</td>
+          <td class="px-5 py-4">
+            <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold bg-yellow-500/20 text-yellow-400 px-2.5 py-1 rounded-full">
+              <span class="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>초안
+            </span>
+          </td>
+          <td class="px-5 py-4 text-xs text-[#ccc3d8]">2024-01-26</td>
+          <td class="px-5 py-4 text-right">
+            <a href="/episodes/4/edit" class="text-xs text-[#d2bbff] hover:text-white transition">편집</a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

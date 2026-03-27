@@ -1,0 +1,20 @@
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # isort
+  "UP",  # pyupgrade
+  "N",   # pep8-naming
+  "B",   # bugbear
+  "RUF", # ruff-specific
+]
+ignore = [
+  "E501", # line-length는 formatter가 처리
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"

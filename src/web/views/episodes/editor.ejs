@@ -1,0 +1,128 @@
+<div>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <a href="/episodes" class="text-xs text-[#ccc3d8] hover:text-[#d2bbff] transition mb-2 inline-block">&larr; 에피소드 목록</a>
+      <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">EP.01 대본 편집</h2>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-[10px] bg-green-500/20 text-green-400 px-2.5 py-1 rounded-full font-semibold">완료</span>
+    </div>
+  </div>
+
+  <!-- 에피소드 메타 -->
+  <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-5 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs text-[#ccc3d8] mb-1.5">에피소드 제목</label>
+        <input type="text" value="이세계에 떨어진 유튜버" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+      </div>
+      <div>
+        <label class="block text-xs text-[#ccc3d8] mb-1.5">시놉시스</label>
+        <input type="text" value="현실 세계의 유튜버 한소율이 이세계로 전이된 첫날의 이야기" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+      </div>
+    </div>
+  </div>
+
+  <!-- 씬 카드 목록 -->
+  <div class="space-y-4 mb-8">
+    <!-- 씬 1 -->
+    <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3 bg-[#2a2a2c]/50 border-b border-[#2a2a2c]">
+        <span class="text-sm font-semibold text-[#d2bbff]">씬 1</span>
+        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">숲 속 공터</span>
+        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">낮</span>
+        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">와이드</span>
+        <div class="ml-auto flex gap-2">
+          <button class="text-[10px] text-[#ccc3d8] hover:text-[#d2bbff] transition">씬 재생성</button>
+          <button class="text-[10px] text-red-400 hover:text-red-300 transition">삭제</button>
+        </div>
+      </div>
+      <div class="p-5 space-y-3">
+        <div class="flex items-start gap-3">
+          <span class="text-[10px] bg-[#7c3aed]/20 text-[#d2bbff] px-2 py-0.5 rounded flex-shrink-0 mt-0.5">나레이션</span>
+          <p class="text-sm text-[#e5e1e4] leading-relaxed">어둠 속에서 눈을 뜬 소율. 익숙하지 않은 숲의 소리가 귓가를 감싼다.</p>
+        </div>
+        <div class="flex items-start gap-3">
+          <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">한소율</span>
+          <p class="text-sm text-[#e5e1e4] leading-relaxed">"...여기가 어디지? 분명 방에서 편집하고 있었는데..."</p>
+        </div>
+        <details class="mt-3">
+          <summary class="text-[10px] text-[#ccc3d8]/60 cursor-pointer hover:text-[#ccc3d8] transition">프롬프트 보기</summary>
+          <div class="mt-2 bg-[#2a2a2c] rounded-lg p-3">
+            <p class="text-[11px] text-[#ccc3d8] font-mono leading-relaxed">A young Korean woman with long dark hair waking up in an enchanted forest clearing, golden sunlight filtering through ancient trees, fantasy art style...</p>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- 씬 2 -->
+    <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3 bg-[#2a2a2c]/50 border-b border-[#2a2a2c]">
+        <span class="text-sm font-semibold text-[#d2bbff]">씬 2</span>
+        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">숲 속 공터</span>
+        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">낮</span>
+        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">클로즈업</span>
+        <div class="ml-auto flex gap-2">
+          <button class="text-[10px] text-[#ccc3d8] hover:text-[#d2bbff] transition">씬 재생성</button>
+          <button class="text-[10px] text-red-400 hover:text-red-300 transition">삭제</button>
+        </div>
+      </div>
+      <div class="p-5 space-y-3">
+        <div class="flex items-start gap-3">
+          <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">한소율</span>
+          <p class="text-sm text-[#e5e1e4] leading-relaxed">"혹시... 이세계? 아니 설마. 그런 건 만화에서나..."</p>
+        </div>
+        <div class="flex items-start gap-3">
+          <span class="text-[10px] bg-[#7c3aed]/20 text-[#d2bbff] px-2 py-0.5 rounded flex-shrink-0 mt-0.5">나레이션</span>
+          <p class="text-sm text-[#e5e1e4] leading-relaxed">그때, 반짝이는 작은 빛이 소율 앞에 나타난다.</p>
+        </div>
+        <details class="mt-3">
+          <summary class="text-[10px] text-[#ccc3d8]/60 cursor-pointer hover:text-[#ccc3d8] transition">프롬프트 보기</summary>
+          <div class="mt-2 bg-[#2a2a2c] rounded-lg p-3">
+            <p class="text-[11px] text-[#ccc3d8] font-mono leading-relaxed">Close-up of a young Korean woman looking around confused in a magical forest, a small glowing fairy approaching...</p>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- 씬 3 -->
+    <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-3 bg-[#2a2a2c]/50 border-b border-[#2a2a2c]">
+        <span class="text-sm font-semibold text-[#d2bbff]">씬 3</span>
+        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">숲 속 공터</span>
+        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">낮</span>
+        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">미디엄</span>
+        <div class="ml-auto flex gap-2">
+          <button class="text-[10px] text-[#ccc3d8] hover:text-[#d2bbff] transition">씬 재생성</button>
+          <button class="text-[10px] text-red-400 hover:text-red-300 transition">삭제</button>
+        </div>
+      </div>
+      <div class="p-5 space-y-3">
+        <div class="flex items-start gap-3">
+          <span class="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">별이</span>
+          <p class="text-sm text-[#e5e1e4] leading-relaxed">"안녕! 나는 별이야. 너를 기다리고 있었어!"</p>
+        </div>
+        <div class="flex items-start gap-3">
+          <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">한소율</span>
+          <p class="text-sm text-[#e5e1e4] leading-relaxed">"어... 말하는 빛? 내가 미친 건가?"</p>
+        </div>
+        <details class="mt-3">
+          <summary class="text-[10px] text-[#ccc3d8]/60 cursor-pointer hover:text-[#ccc3d8] transition">프롬프트 보기</summary>
+          <div class="mt-2 bg-[#2a2a2c] rounded-lg p-3">
+            <p class="text-[11px] text-[#ccc3d8] font-mono leading-relaxed">A cute glowing fairy introducing herself to a surprised young woman, magical forest background, warm lighting...</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- 하단 액션 -->
+  <div class="flex items-center justify-between bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-5">
+    <button class="bg-[#2a2a2c] hover:bg-[#353437] text-[#e5e1e4] text-sm font-semibold px-5 py-2.5 rounded-lg transition">전체 재생성</button>
+    <button class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition flex items-center gap-2">
+      승인 &rarr; 영상 생성
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+    </button>
+  </div>
+</div>

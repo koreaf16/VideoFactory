@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#131315">
+  <title>AI 영상 공장 — <%= title %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Manrope:wght@400;500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            surface:          { DEFAULT:'#131315', low:'#1b1b1d', container:'#201f21', high:'#2a2a2c', highest:'#353437', lowest:'#0e0e10' },
+            primary:          { DEFAULT:'#d2bbff', container:'#7c3aed' },
+            tertiary:         '#ffb784',
+            'on-bg':          '#e5e1e4',
+            'on-surface':     '#e5e1e4',
+            'on-surface-var': '#ccc3d8',
+            outline:          { DEFAULT:'#958da1', variant:'#4a4455' },
+          },
+          fontFamily: {
+            headline: ['"Plus Jakarta Sans"', 'sans-serif'],
+            body:     ['Manrope', 'sans-serif'],
+            label:    ['Inter', 'sans-serif'],
+          },
+          borderRadius: { DEFAULT:'8px' },
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="bg-surface text-on-bg font-body min-h-screen antialiased">
+  <div class="flex min-h-screen">
+    <%- include('../sidebar') %>
+    <main class="flex-1 ml-64 p-6 overflow-y-auto">
+      <%- body %>
+    </main>
+  </div>
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/js/common.js"></script>
+</body>
+</html>
