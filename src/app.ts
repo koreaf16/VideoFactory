@@ -22,6 +22,7 @@ import { errorHandler } from './common/middleware/error-handler';
 
 import webRoutes from './web/routes/web-routes';
 import characterRoutes from './characters/routes/character-routes';
+import loraRoutes from './characters/routes/lora-routes';
 import episodeRoutes from './episodes/routes/episode-routes';
 import videoRoutes from './video/routes/video-routes';
 import healthRoutes from './web/routes/health-routes';
@@ -55,6 +56,7 @@ app.use(requestLogger);
 
 app.use('/', webRoutes);
 app.use('/api/characters', characterRoutes);
+app.use('/api/characters', loraRoutes);
 app.use('/api/episodes', episodeRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/health', healthRoutes);
