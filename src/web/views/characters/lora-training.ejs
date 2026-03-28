@@ -1,0 +1,664 @@
+<div x-data="loraTraining()" x-init="init()">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">LoRA 학습 모니터</h2>
+      <p class="text-xs text-[#ccc3d8] mt-1">캐릭터: <span class="text-[#d2bbff]"><%= charId %></span></p>
+    </div>
+    <a href="/characters" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition">목록으로</a>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Section 1: Training Config Form                              -->
+  <!-- ============================================================ -->
+  <div x-show="section === 'config'" class="fade-in">
+    <div class="bg-[#2a2a2c] rounded-xl p-6 mb-6 border border-[#353437]">
+      <h3 class="text-lg font-semibold text-[#e5e1e4] mb-4">학습 설정</h3>
+
+      <!-- Dataset selector -->
+      <div class="mb-5">
+        <label class="block text-sm text-[#ccc3d8] mb-1">데이터셋</label>
+        <div class="relative">
+          <select x-model="config.datasetId"
+                  class="input w-full appearance-none pr-8 cursor-pointer">
+            <option value="">데이터셋을 선택하세요</option>
+            <template x-for="ds in datasets" :key="ds.id">
+              <option :value="ds.id" x-text="ds.name + ' (' + ds.imageCount + '장)'"></option>
+            </template>
+          </select>
+          <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[#958da1] pointer-events-none text-xs">&#9660;</span>
+        </div>
+        <p x-show="datasets.length === 0 && !loadingDatasets" class="text-xs text-[#f87171] mt-1">
+          사용 가능한 데이터셋이 없습니다. 먼저 데이터셋을 준비하세요.
+        </p>
+      </div>
+
+      <!-- Hyperparameter Grid -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        <div>
+          <label class="block text-xs text-[#ccc3d8] mb-1">Max Train Steps</label>
+          <input type="number" x-model.number="config.maxTrainSteps"
+                 class="input w-full" min="100" step="100">
+        </div>
+        <div>
+          <label class="block text-xs text-[#ccc3d8] mb-1">Learning Rate</label>
+          <input type="text" x-model="config.learningRate"
+                 class="input w-full" placeholder="5e-5">
+        </div>
+        <div>
+          <label class="block text-xs text-[#ccc3d8] mb-1">Network Dim</label>
+          <input type="number" x-model.number="config.networkDim"
+                 class="input w-full" min="1" max="128" step="1">
+        </div>
+        <div>
+          <label class="block text-xs text-[#ccc3d8] mb-1">Network Alpha</label>
+          <input type="number" x-model.number="config.networkAlpha"
+                 class="input w-full" min="1" max="128" step="1">
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="flex items-center gap-3">
+        <button @click="startTraining()"
+                :disabled="!config.datasetId || submitting"
+                class="btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
+          <span x-show="!submitting">학습 시작</span>
+          <span x-show="submitting" class="flex items-center gap-2">
+            <span class="animate-spin">&#9696;</span> 요청 중...
+          </span>
+        </button>
+        <p x-show="submitError" class="text-xs text-[#f87171]" x-text="submitError"></p>
+      </div>
+    </div>
+
+    <!-- Previous Training Jobs -->
+    <div x-show="previousJobs.length > 0" class="bg-[#2a2a2c] rounded-xl p-6 border border-[#353437]">
+      <h3 class="text-lg font-semibold text-[#e5e1e4] mb-4">이전 학습 기록</h3>
+      <div class="space-y-2">
+        <template x-for="job in previousJobs" :key="job.jobId">
+          <div class="flex items-center justify-between bg-[#1b1b1d] rounded-lg p-3 hover:bg-[#201f21] transition cursor-pointer"
+               @click="resumeJob(job)">
+            <div class="flex items-center gap-3">
+              <span class="w-2 h-2 rounded-full"
+                    :class="job.status === 'completed' ? 'bg-[#4ade80]' :
+                            job.status === 'training' ? 'bg-[#d2bbff] animate-pulse' :
+                            job.status === 'failed' ? 'bg-[#f87171]' : 'bg-[#958da1]'"></span>
+              <span class="text-sm text-[#e5e1e4]" x-text="job.jobId"></span>
+            </div>
+            <div class="flex items-center gap-4">
+              <span class="text-xs text-[#ccc3d8]" x-text="job.status"></span>
+              <span class="text-xs text-[#958da1]" x-text="job.steps ? (job.steps + ' steps') : ''"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Section 2: Training Progress                                 -->
+  <!-- ============================================================ -->
+  <div x-show="section === 'progress'" class="fade-in">
+    <div class="bg-[#2a2a2c] rounded-xl p-6 mb-6 border border-[#353437]">
+      <!-- Status header -->
+      <div class="flex items-center gap-4 mb-4">
+        <div class="w-10 h-10 rounded-full flex items-center justify-center"
+             :class="trainStatus === 'completed' ? 'bg-green-900/50' :
+                     trainStatus === 'failed' ? 'bg-red-900/50' :
+                     'bg-[#7c3aed]'">
+          <span x-show="trainStatus === 'training' || trainStatus === 'queued'"
+                class="animate-spin text-white text-lg">&#9696;</span>
+          <span x-show="trainStatus === 'completed'"
+                class="text-[#4ade80] text-lg">&#10004;</span>
+          <span x-show="trainStatus === 'failed'"
+                class="text-[#f87171] text-lg">&#10008;</span>
+        </div>
+        <div>
+          <p class="text-lg font-semibold text-[#e5e1e4]" x-text="statusText"></p>
+          <p class="text-sm text-[#ccc3d8]" x-text="statusDetail"></p>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="mb-3">
+        <div class="flex justify-between text-xs text-[#ccc3d8] mb-1">
+          <span x-text="'Step ' + currentStep + ' / ' + totalSteps"></span>
+          <span x-text="progressPct + '%'"></span>
+        </div>
+        <div class="w-full bg-[#353437] rounded-full h-3">
+          <div class="bg-gradient-to-r from-[#7c3aed] to-[#a855f7] h-3 rounded-full transition-all duration-500"
+               :style="'width:' + progressPct + '%'"></div>
+        </div>
+      </div>
+
+      <!-- Training stats -->
+      <div class="mt-4 grid grid-cols-4 gap-3 text-center">
+        <div class="bg-[#1b1b1d] rounded-lg p-3">
+          <p class="text-lg font-bold text-[#d2bbff]" x-text="currentStep">0</p>
+          <p class="text-[10px] text-[#ccc3d8]">현재 스텝</p>
+        </div>
+        <div class="bg-[#1b1b1d] rounded-lg p-3">
+          <p class="text-lg font-bold text-[#4ade80]" x-text="totalSteps">0</p>
+          <p class="text-[10px] text-[#ccc3d8]">총 스텝</p>
+        </div>
+        <div class="bg-[#1b1b1d] rounded-lg p-3">
+          <p class="text-lg font-bold text-[#fbbf24]" x-text="currentLoss">-</p>
+          <p class="text-[10px] text-[#ccc3d8]">Loss</p>
+        </div>
+        <div class="bg-[#1b1b1d] rounded-lg p-3">
+          <p class="text-lg font-bold text-[#ffb784]" x-text="elapsed">-</p>
+          <p class="text-[10px] text-[#ccc3d8]">경과 시간</p>
+        </div>
+      </div>
+
+      <!-- Log console -->
+      <div x-ref="logConsole"
+           class="mt-4 max-h-48 overflow-y-auto bg-[#1b1b1d] rounded-lg p-3 text-xs font-mono text-[#ccc3d8] space-y-1">
+        <template x-for="(log, i) in logs" :key="i">
+          <div x-text="log"></div>
+        </template>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="mt-4 flex gap-3">
+        <button x-show="trainStatus === 'training' || trainStatus === 'queued'"
+                @click="stopTraining()"
+                :disabled="stopping"
+                class="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+          <span x-text="stopping ? '중지 중...' : '학습 중지'"></span>
+        </button>
+        <button x-show="trainStatus === 'completed' || trainStatus === 'failed'"
+                @click="section = 'config'"
+                class="btn-ghost text-sm">
+          설정으로 돌아가기
+        </button>
+        <button x-show="trainStatus === 'completed'"
+                @click="loadCheckpoints()"
+                class="btn-primary text-sm">
+          체크포인트 확인
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Section 3: Checkpoint List                                   -->
+  <!-- ============================================================ -->
+  <div x-show="section === 'checkpoints'" class="fade-in">
+    <div class="bg-[#2a2a2c] rounded-xl p-6 mb-6 border border-[#353437]">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-[#e5e1e4]">체크포인트 목록</h3>
+        <button @click="section = 'config'" class="btn-ghost text-sm">설정으로</button>
+      </div>
+
+      <div x-show="checkpoints.length === 0" class="text-sm text-[#ccc3d8] py-4 text-center">
+        체크포인트가 없습니다.
+      </div>
+
+      <div class="space-y-2">
+        <template x-for="ckpt in checkpoints" :key="ckpt.step">
+          <div class="flex items-center justify-between bg-[#1b1b1d] rounded-lg p-4 hover:bg-[#201f21] transition"
+               :class="selectedCheckpoint && selectedCheckpoint.step === ckpt.step ? 'ring-2 ring-[#7c3aed]' : ''">
+            <div class="flex items-center gap-4">
+              <div class="w-10 h-10 rounded-lg bg-[#353437] flex items-center justify-center">
+                <span class="text-xs font-bold text-[#d2bbff]" x-text="ckpt.step"></span>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-[#e5e1e4]" x-text="'Step ' + ckpt.step"></p>
+                <p class="text-xs text-[#ccc3d8]" x-text="ckpt.filename"></p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="testCheckpoint(ckpt)"
+                      :disabled="testing"
+                      class="bg-[#353437] hover:bg-[#4a4455] text-[#d2bbff] text-xs px-3 py-1.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+                테스트
+              </button>
+              <button @click="selectCheckpoint(ckpt)"
+                      class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                선택
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Section 4: Test Image Comparison                             -->
+  <!-- ============================================================ -->
+  <div x-show="section === 'test'" class="fade-in">
+    <div class="bg-[#2a2a2c] rounded-xl p-6 mb-6 border border-[#353437]">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-semibold text-[#e5e1e4]">테스트 결과</h3>
+          <p class="text-xs text-[#ccc3d8] mt-1"
+             x-text="testCheckpointLabel ? 'Step ' + testCheckpointLabel : ''"></p>
+        </div>
+        <button @click="section = 'checkpoints'" class="btn-ghost text-sm">체크포인트 목록</button>
+      </div>
+
+      <!-- Test progress -->
+      <div x-show="testing" class="mb-4">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="animate-spin text-[#d2bbff]">&#9696;</span>
+          <span class="text-sm text-[#ccc3d8]" x-text="testStatusText"></span>
+        </div>
+        <div class="w-full bg-[#353437] rounded-full h-2">
+          <div class="bg-gradient-to-r from-[#7c3aed] to-[#a855f7] h-2 rounded-full transition-all duration-300"
+               :style="'width:' + testProgressPct + '%'"></div>
+        </div>
+      </div>
+
+      <!-- Test image grid (5 images) -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        <template x-for="(img, idx) in testImages" :key="idx">
+          <div class="bg-[#1b1b1d] rounded-lg overflow-hidden cursor-pointer group hover:ring-2 hover:ring-[#7c3aed] transition"
+               @click="openTestModal(img)">
+            <div class="aspect-[3/4] bg-[#353437] flex items-center justify-center">
+              <template x-if="img.imagePath">
+                <img :src="pathToUrl(img.imagePath)" :alt="'test-' + idx"
+                     class="w-full h-full object-cover" loading="lazy">
+              </template>
+              <template x-if="!img.imagePath">
+                <span class="animate-spin text-[#958da1]">&#9696;</span>
+              </template>
+            </div>
+            <div class="p-2 space-y-1">
+              <p class="text-[10px] text-[#ccc3d8] truncate" x-text="img.prompt || '생성 중...'"></p>
+              <div class="flex items-center gap-2">
+                <span x-show="img.seed" class="text-[9px] text-[#958da1]" x-text="'seed: ' + img.seed"></span>
+                <span x-show="img.loraStrength" class="text-[9px] text-[#d2bbff]" x-text="'str: ' + img.loraStrength"></span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Actions after test -->
+      <div x-show="!testing && testImages.length > 0" class="mt-4 flex gap-3">
+        <button @click="selectCheckpoint(testingCheckpoint)"
+                class="btn-primary text-sm">
+          이 체크포인트 선택
+        </button>
+        <button @click="section = 'checkpoints'" class="btn-ghost text-sm">
+          다른 체크포인트 테스트
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Image Modal                                                  -->
+  <!-- ============================================================ -->
+  <div x-show="modalOpen" x-transition.opacity
+       class="fixed inset-0 bg-black/90 z-50 flex items-center justify-center"
+       @click.self="modalOpen = false">
+    <div class="relative max-w-[85vw] max-h-[90vh] flex flex-col items-center">
+      <img :src="modalImage.src" class="max-w-full max-h-[75vh] rounded-lg shadow-2xl" alt="">
+      <p class="text-sm text-[#d2bbff] font-semibold mt-3" x-text="modalImage.label"></p>
+      <p class="text-xs text-[#ccc3d8] mt-1 max-w-xl text-center" x-text="modalImage.prompt"></p>
+      <div class="flex items-center gap-2 mt-2">
+        <span x-show="modalImage.seed" class="text-xs text-[#958da1]" x-text="'seed: ' + modalImage.seed"></span>
+        <span x-show="modalImage.loraStrength" class="text-xs text-[#d2bbff]" x-text="'strength: ' + modalImage.loraStrength"></span>
+      </div>
+      <button @click="modalOpen = false"
+              class="mt-4 bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-6 py-2.5 rounded-lg transition">
+        닫기
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<script src="/js/characters.js"></script>
+<script src="/js/lora.js"></script>
+<script>
+function loraTraining() {
+  var CHAR_ID = '<%= charId %>';
+
+  return {
+    // --- Navigation ---
+    section: 'config',   // config | progress | checkpoints | test
+
+    // --- Config Form ---
+    config: {
+      datasetId: '',
+      maxTrainSteps: 1500,
+      learningRate: '5e-5',
+      networkDim: 16,
+      networkAlpha: 16,
+    },
+    datasets: [],
+    loadingDatasets: true,
+    previousJobs: [],
+    submitting: false,
+    submitError: '',
+
+    // --- Training Progress ---
+    trainJobId: '',
+    trainStatus: 'queued',  // queued | training | completed | failed
+    statusText: '대기 중...',
+    statusDetail: '학습 작업이 큐에 등록되었습니다',
+    currentStep: 0,
+    totalSteps: 0,
+    currentLoss: '-',
+    elapsed: '-',
+    progressPct: 0,
+    logs: [],
+    stopping: false,
+    sseSource: null,
+
+    // --- Checkpoints ---
+    checkpoints: [],
+    selectedCheckpoint: null,
+
+    // --- Test ---
+    testing: false,
+    testingCheckpoint: null,
+    testCheckpointLabel: '',
+    testJobId: '',
+    testStatusText: '테스트 이미지 생성 중...',
+    testProgressPct: 0,
+    testImages: [],
+    testSseSource: null,
+
+    // --- Modal ---
+    modalOpen: false,
+    modalImage: { src: '', label: '', prompt: '', seed: '', loraStrength: '' },
+
+    // ── Lifecycle ────────────────────────────────────
+    async init() {
+      await this.fetchDatasets();
+      this.fetchPreviousJobs();
+    },
+
+    // ── Data Fetching ────────────────────────────────
+    async fetchDatasets() {
+      this.loadingDatasets = true;
+      try {
+        var data = await loraApi('GET', '/api/characters/' + CHAR_ID + '/lora/dataset');
+        this.datasets = data.datasets || data.data || [];
+      } catch (e) {
+        this.datasets = [];
+      }
+      this.loadingDatasets = false;
+    },
+
+    async fetchPreviousJobs() {
+      try {
+        var data = await loraApi('GET', '/api/characters/' + CHAR_ID + '/lora/train');
+        this.previousJobs = data.jobs || data.data || [];
+      } catch (e) {
+        this.previousJobs = [];
+      }
+    },
+
+    // ── Training ─────────────────────────────────────
+    async startTraining() {
+      if (!this.config.datasetId) return;
+      this.submitting = true;
+      this.submitError = '';
+
+      try {
+        var body = {
+          datasetId: this.config.datasetId,
+          maxTrainSteps: this.config.maxTrainSteps,
+          learningRate: this.config.learningRate,
+          networkDim: this.config.networkDim,
+          networkAlpha: this.config.networkAlpha,
+        };
+        var data = await loraApi('POST', '/api/characters/' + CHAR_ID + '/lora/train', body);
+
+        if (data.success && data.jobId) {
+          this.trainJobId = data.jobId;
+          this.trainStatus = 'queued';
+          this.currentStep = 0;
+          this.totalSteps = this.config.maxTrainSteps;
+          this.progressPct = 0;
+          this.logs = [];
+          this.statusText = '대기 중...';
+          this.statusDetail = '학습 작업이 큐에 등록되었습니다';
+          this.section = 'progress';
+          this.connectTrainSSE();
+        } else {
+          this.submitError = data.error || '학습 시작에 실패했습니다.';
+        }
+      } catch (e) {
+        this.submitError = e.message || '요청에 실패했습니다.';
+      }
+      this.submitting = false;
+    },
+
+    resumeJob(job) {
+      this.trainJobId = job.jobId;
+      this.trainStatus = job.status;
+      this.totalSteps = job.steps || 0;
+
+      if (job.status === 'completed') {
+        this.currentStep = this.totalSteps;
+        this.progressPct = 100;
+        this.statusText = '학습 완료';
+        this.statusDetail = '체크포인트를 확인하세요';
+        this.section = 'progress';
+      } else if (job.status === 'training' || job.status === 'queued') {
+        this.currentStep = 0;
+        this.progressPct = 0;
+        this.statusText = job.status === 'training' ? '학습 중...' : '대기 중...';
+        this.statusDetail = '';
+        this.section = 'progress';
+        this.connectTrainSSE();
+      } else {
+        this.statusText = '학습 실패';
+        this.statusDetail = '';
+        this.section = 'progress';
+      }
+    },
+
+    connectTrainSSE() {
+      if (this.sseSource) this.sseSource.close();
+      var self = this;
+      var url = '/api/characters/' + CHAR_ID + '/lora/train/' + this.trainJobId + '/stream';
+
+      this.sseSource = connectSSE(url,
+        function onMessage(data) {
+          // Update step progress
+          if (data.step !== undefined) self.currentStep = data.step;
+          if (data.totalSteps !== undefined) self.totalSteps = data.totalSteps;
+          if (data.loss !== undefined) self.currentLoss = parseFloat(data.loss).toFixed(4);
+          if (data.elapsed !== undefined) self.elapsed = data.elapsed;
+          if (data.status) self.trainStatus = data.status;
+
+          // Progress percentage
+          if (self.totalSteps > 0) {
+            self.progressPct = Math.min(100, Math.round((self.currentStep / self.totalSteps) * 100));
+          }
+
+          // Status text
+          if (data.status === 'training') {
+            self.statusText = '학습 중...';
+            self.statusDetail = 'Step ' + self.currentStep + ' / ' + self.totalSteps;
+          } else if (data.status === 'completed') {
+            self.statusText = '학습 완료';
+            self.statusDetail = '총 ' + self.totalSteps + ' 스텝 학습 완료';
+            self.progressPct = 100;
+          } else if (data.status === 'failed') {
+            self.statusText = '학습 실패';
+            self.statusDetail = data.error || '오류가 발생했습니다';
+          }
+
+          // Log
+          if (data.message) {
+            self.addLog(data.message);
+          } else if (data.step !== undefined) {
+            self.addLog('Step ' + data.step + (data.loss ? ' | loss: ' + parseFloat(data.loss).toFixed(4) : ''));
+          }
+        },
+        function onDone(data) {
+          self.sseSource = null;
+        }
+      );
+    },
+
+    async stopTraining() {
+      if (this.stopping) return;
+      this.stopping = true;
+
+      try {
+        var data = await loraApi('POST', '/api/characters/' + CHAR_ID + '/lora/train/' + this.trainJobId + '/stop');
+        if (data.success) {
+          this.addLog('학습 중지 요청 완료');
+          this.trainStatus = 'failed';
+          this.statusText = '학습 중지됨';
+          this.statusDetail = '';
+          if (this.sseSource) { this.sseSource.close(); this.sseSource = null; }
+        } else {
+          this.addLog('중지 실패: ' + (data.error || ''));
+        }
+      } catch (e) {
+        this.addLog('중지 요청 실패: ' + e.message);
+      }
+      this.stopping = false;
+    },
+
+    // ── Checkpoints ──────────────────────────────────
+    async loadCheckpoints() {
+      try {
+        var data = await loraApi('GET', '/api/characters/' + CHAR_ID + '/lora/train/' + this.trainJobId + '/checkpoints');
+        this.checkpoints = data.checkpoints || data.data || [];
+        this.section = 'checkpoints';
+      } catch (e) {
+        showToast('체크포인트 목록 로드 실패', 'error');
+      }
+    },
+
+    async selectCheckpoint(ckpt) {
+      if (!ckpt) return;
+      try {
+        var data = await loraApi('POST', '/api/characters/' + CHAR_ID + '/lora/select', {
+          jobId: this.trainJobId,
+          step: ckpt.step,
+          filename: ckpt.filename,
+        });
+        if (data.success) {
+          this.selectedCheckpoint = ckpt;
+          showToast('Step ' + ckpt.step + ' 체크포인트가 선택되었습니다.', 'success');
+        } else {
+          showToast(data.error || '선택에 실패했습니다.', 'error');
+        }
+      } catch (e) {
+        showToast('요청에 실패했습니다.', 'error');
+      }
+    },
+
+    // ── Test ─────────────────────────────────────────
+    async testCheckpoint(ckpt) {
+      this.testing = true;
+      this.testingCheckpoint = ckpt;
+      this.testCheckpointLabel = ckpt.step;
+      this.testImages = [];
+      this.testProgressPct = 0;
+      this.testStatusText = '테스트 이미지 생성 중...';
+      this.section = 'test';
+
+      try {
+        var data = await loraApi('POST', '/api/characters/' + CHAR_ID + '/lora/test', {
+          jobId: this.trainJobId,
+          step: ckpt.step,
+          filename: ckpt.filename,
+        });
+
+        if (data.success && data.jobId) {
+          this.testJobId = data.jobId;
+          this.connectTestSSE();
+        } else {
+          this.testing = false;
+          showToast(data.error || '테스트 시작에 실패했습니다.', 'error');
+          this.section = 'checkpoints';
+        }
+      } catch (e) {
+        this.testing = false;
+        showToast('요청에 실패했습니다.', 'error');
+        this.section = 'checkpoints';
+      }
+    },
+
+    connectTestSSE() {
+      if (this.testSseSource) this.testSseSource.close();
+      var self = this;
+      var url = '/api/characters/' + CHAR_ID + '/lora/test/stream?jobId=' + this.testJobId;
+
+      this.testSseSource = connectSSE(url,
+        function onMessage(data) {
+          // Update progress
+          if (data.completed !== undefined && data.total !== undefined) {
+            self.testProgressPct = Math.round((data.completed / data.total) * 100);
+            self.testStatusText = '생성 중... ' + data.completed + '/' + data.total;
+          }
+
+          // New image arrived
+          if (data.image) {
+            self.testImages.push({
+              imagePath: data.image.imagePath || '',
+              prompt: data.image.prompt || '',
+              seed: data.image.seed || '',
+              loraStrength: data.image.loraStrength || '',
+            });
+          }
+
+          // Batch of images
+          if (data.images) {
+            data.images.forEach(function(img) {
+              self.testImages.push({
+                imagePath: img.imagePath || '',
+                prompt: img.prompt || '',
+                seed: img.seed || '',
+                loraStrength: img.loraStrength || '',
+              });
+            });
+          }
+
+          if (data.status === 'completed' || data.status === 'done' || data.status === 'ready') {
+            self.testing = false;
+            self.testProgressPct = 100;
+            self.testStatusText = '테스트 완료';
+          }
+        },
+        function onDone() {
+          self.testing = false;
+          self.testSseSource = null;
+        }
+      );
+    },
+
+    // ── Helpers ──────────────────────────────────────
+    addLog(msg) {
+      var ts = new Date().toLocaleTimeString();
+      this.logs.push('[' + ts + '] ' + msg);
+      if (this.logs.length > 100) this.logs.shift();
+
+      // Auto-scroll log console
+      var self = this;
+      this.$nextTick(function() {
+        var el = self.$refs.logConsole;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    },
+
+    pathToUrl: pathToUrl,
+
+    openTestModal(img) {
+      if (!img.imagePath) return;
+      this.modalImage = {
+        src: pathToUrl(img.imagePath),
+        label: 'Step ' + this.testCheckpointLabel,
+        prompt: img.prompt || '',
+        seed: img.seed || '',
+        loraStrength: img.loraStrength || '',
+      };
+      this.modalOpen = true;
+    },
+  };
+}
+</script>
