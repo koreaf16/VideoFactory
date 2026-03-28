@@ -1,0 +1,471 @@
+<div x-data="loraDataset()" x-init="init()">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">LoRA 데이터셋</h2>
+      <p class="text-xs text-[#ccc3d8] mt-1">캐릭터별 LoRA 학습용 데이터셋을 관리합니다</p>
+    </div>
+    <a href="/characters" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition">캐릭터 관리</a>
+  </div>
+
+  <!-- 캐릭터 선택 -->
+  <div class="bg-[#2a2a2c] rounded-xl p-5 mb-6 border border-[#353437]">
+    <label class="block text-sm text-[#ccc3d8] mb-2">캐릭터 선택</label>
+    <select x-model="selectedCharId" @change="onCharacterChange()"
+      class="w-full max-w-md bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+      <option value="">-- 캐릭터를 선택하세요 --</option>
+      <template x-for="c in characters" :key="c.CHAR_ID">
+        <option :value="c.CHAR_ID" x-text="c.NAME + ' (' + c.CHAR_ID + ')'"></option>
+      </template>
+    </select>
+  </div>
+
+  <!-- 데이터셋 상태 배지 -->
+  <template x-if="selectedCharId && datasetStatus">
+    <div class="bg-[#2a2a2c] rounded-xl p-5 mb-6 border border-[#353437]">
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-[#ccc3d8]">데이터셋 상태:</span>
+        <span class="text-xs font-semibold px-3 py-1 rounded-full"
+          :class="{
+            'bg-yellow-500/20 text-yellow-400': datasetStatus === 'preparing',
+            'bg-blue-500/20 text-blue-400': datasetStatus === 'captioning',
+            'bg-green-500/20 text-green-400': datasetStatus === 'ready',
+            'bg-[#353437] text-[#ccc3d8]': !['preparing','captioning','ready'].includes(datasetStatus)
+          }"
+          x-text="statusLabel(datasetStatus)"></span>
+        <template x-if="datasetId">
+          <span class="text-xs text-[#958da1]">ID: <span class="text-[#d2bbff]" x-text="datasetId"></span></span>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- 파생 이미지 그리드 + 선택 -->
+  <template x-if="selectedCharId">
+    <div class="mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-[#e5e1e4]">승인된 파생 이미지</h3>
+        <div class="flex items-center gap-3">
+          <button @click="toggleSelectAll()"
+            class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-xs px-3 py-1.5 rounded-lg transition">
+            <span x-text="allSelected ? '전체 해제' : '전체 선택'"></span>
+          </button>
+          <span class="text-xs text-[#ccc3d8]">
+            <span class="text-[#d2bbff] font-semibold" x-text="selectedImages.length"></span>개 선택됨
+          </span>
+        </div>
+      </div>
+
+      <!-- 로딩 -->
+      <div x-show="loadingImages" class="text-center py-10 text-[#ccc3d8]">이미지를 불러오는 중...</div>
+
+      <!-- 빈 상태 -->
+      <div x-show="!loadingImages && images.length === 0" class="text-center py-10 text-[#ccc3d8]">
+        승인된 파생 이미지가 없습니다. 먼저 파생 이미지를 생성하고 승인해 주세요.
+      </div>
+
+      <!-- 이미지 그리드 -->
+      <div x-show="!loadingImages && images.length > 0"
+        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        <template x-for="img in images" :key="img.id">
+          <div class="relative bg-[#2a2a2c] rounded-lg overflow-hidden cursor-pointer group transition"
+            :class="selectedImages.includes(img.id) ? 'ring-2 ring-[#7c3aed]' : 'hover:ring-1 hover:ring-[#4a4455]'"
+            @click="toggleImage(img.id)">
+            <!-- 체크박스 오버레이 -->
+            <div class="absolute top-2 left-2 z-10">
+              <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition"
+                :class="selectedImages.includes(img.id) ? 'bg-[#7c3aed] border-[#7c3aed]' : 'border-[#958da1] bg-black/40'">
+                <svg x-show="selectedImages.includes(img.id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                </svg>
+              </div>
+            </div>
+            <!-- 이미지 -->
+            <div class="aspect-[3/4] bg-[#353437] flex items-center justify-center">
+              <img :src="img.thumbUrl || img.url" :alt="img.label || ''" class="w-full h-full object-cover" loading="lazy">
+            </div>
+            <!-- 캡션 표시 (캡셔닝 후) -->
+            <template x-if="img.caption">
+              <div class="p-2">
+                <p class="text-[10px] text-[#ccc3d8] line-clamp-2" x-text="img.caption"></p>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- 데이터셋 구성 -->
+  <template x-if="selectedCharId && images.length > 0 && !datasetId">
+    <div class="bg-[#2a2a2c] rounded-xl p-6 mb-6 border border-[#353437]">
+      <h3 class="text-lg font-semibold text-[#e5e1e4] mb-4">데이터셋 구성</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div>
+          <label class="block text-sm text-[#ccc3d8] mb-1">데이터셋 이름</label>
+          <input x-model="datasetName" type="text" placeholder="예: soyul_v1"
+            class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] placeholder-[#958da1] focus:outline-none focus:border-[#7c3aed]">
+        </div>
+        <div>
+          <label class="block text-sm text-[#ccc3d8] mb-1">트리거 워드</label>
+          <input x-model="triggerWord" type="text" placeholder="예: soyul_character"
+            class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] placeholder-[#958da1] focus:outline-none focus:border-[#7c3aed]">
+          <p class="text-xs text-[#958da1] mt-1">LoRA 학습 시 사용할 고유 트리거 단어</p>
+        </div>
+      </div>
+      <button @click="createDataset()" :disabled="creatingDataset || selectedImages.length === 0"
+        class="bg-gradient-to-r from-[#7c3aed] to-[#a855f7] hover:opacity-90 text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+        <span x-show="!creatingDataset">데이터셋 생성 (<span x-text="selectedImages.length"></span>장)</span>
+        <span x-show="creatingDataset">생성 중...</span>
+      </button>
+    </div>
+  </template>
+
+  <!-- 캡셔닝 섹션 (데이터셋 생성 후 표시) -->
+  <template x-if="datasetId">
+    <div class="bg-[#2a2a2c] rounded-xl p-6 mb-6 border border-[#353437]">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-[#e5e1e4]">자동 캡셔닝</h3>
+        <template x-if="captionProgress.status !== 'running'">
+          <button @click="startCaptioning()" :disabled="captioningStarted"
+            class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-4 py-2 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <span x-text="captionProgress.status === 'completed' ? '캡셔닝 재시작' : '캡셔닝 시작'"></span>
+          </button>
+        </template>
+      </div>
+
+      <!-- 진행률 바 -->
+      <template x-if="captionProgress.status === 'running' || captionProgress.status === 'completed'">
+        <div class="mb-5">
+          <div class="flex justify-between text-xs text-[#ccc3d8] mb-1">
+            <span x-text="captionProgress.status === 'completed' ? '캡셔닝 완료' : '캡셔닝 진행 중...'"></span>
+            <span x-text="captionProgress.current + ' / ' + captionProgress.total"></span>
+          </div>
+          <div class="w-full bg-[#353437] rounded-full h-3">
+            <div class="bg-gradient-to-r from-[#7c3aed] to-[#a855f7] h-3 rounded-full transition-all duration-500"
+              :style="'width:' + (captionProgress.total > 0 ? Math.round(captionProgress.current / captionProgress.total * 100) : 0) + '%'"></div>
+          </div>
+        </div>
+      </template>
+
+      <!-- 이미지 + 캡션 그리드 -->
+      <template x-if="captionedImages.length > 0">
+        <div>
+          <h4 class="text-sm font-semibold text-[#e5e1e4] mb-3">이미지별 캡션</h4>
+          <div class="space-y-3 max-h-[600px] overflow-y-auto">
+            <template x-for="img in captionedImages" :key="img.id">
+              <div class="flex gap-4 bg-[#1b1b1d] rounded-lg p-3">
+                <!-- 썸네일 -->
+                <div class="w-20 h-28 flex-shrink-0 rounded-lg overflow-hidden bg-[#353437]">
+                  <img :src="img.thumbUrl || img.url" :alt="img.label || ''" class="w-full h-full object-cover">
+                </div>
+                <!-- 캡션 편집 -->
+                <div class="flex-1 min-w-0">
+                  <template x-if="editingCaptionId !== img.id">
+                    <div>
+                      <p class="text-sm text-[#e5e1e4] leading-relaxed cursor-pointer hover:text-[#d2bbff] transition"
+                        @click="startEditCaption(img)"
+                        x-text="img.caption || '(캡션 없음 - 클릭하여 입력)'"></p>
+                      <p class="text-[10px] text-[#958da1] mt-1">클릭하여 편집</p>
+                    </div>
+                  </template>
+                  <template x-if="editingCaptionId === img.id">
+                    <div>
+                      <textarea x-model="editingCaptionText" rows="3"
+                        class="w-full bg-[#353437] border border-[#7c3aed] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none resize-none"></textarea>
+                      <div class="flex gap-2 mt-2">
+                        <button @click="saveCaption(img)"
+                          class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs px-3 py-1.5 rounded-lg transition">저장</button>
+                        <button @click="cancelEditCaption()"
+                          class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-xs px-3 py-1.5 rounded-lg transition">취소</button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>
+
+<!-- Alpine.js CDN -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script src="/js/characters.js"></script>
+<script>
+function loraDataset() {
+  return {
+    // state
+    characters: [],
+    selectedCharId: '',
+    images: [],
+    selectedImages: [],
+    loadingImages: false,
+    triggerWord: '',
+    datasetName: '',
+    datasetId: null,
+    datasetStatus: null,
+    creatingDataset: false,
+    captioningStarted: false,
+    captionProgress: { current: 0, total: 0, status: '' },
+    captionedImages: [],
+    editingCaptionId: null,
+    editingCaptionText: '',
+    eventSource: null,
+
+    get allSelected() {
+      return this.images.length > 0 && this.selectedImages.length === this.images.length;
+    },
+
+    async init() {
+      await this.loadCharacters();
+    },
+
+    async loadCharacters() {
+      try {
+        var res = await fetch('/api/characters/');
+        var json = await res.json();
+        this.characters = json.data || [];
+      } catch (err) {
+        showToast('캐릭터 목록을 불러오지 못했습니다.', 'error');
+      }
+    },
+
+    async onCharacterChange() {
+      this.images = [];
+      this.selectedImages = [];
+      this.datasetId = null;
+      this.datasetStatus = null;
+      this.captionedImages = [];
+      this.captionProgress = { current: 0, total: 0, status: '' };
+      this.captioningStarted = false;
+      if (this.eventSource) { this.eventSource.close(); this.eventSource = null; }
+
+      if (!this.selectedCharId) return;
+
+      await this.loadDerivativeImages();
+      await this.loadExistingDataset();
+    },
+
+    async loadDerivativeImages() {
+      this.loadingImages = true;
+      try {
+        var res = await fetch('/api/characters/' + encodeURIComponent(this.selectedCharId) + '/lora/images');
+        var json = await res.json();
+        this.images = (json.data || []).map(function(img) {
+          return {
+            id: img.id || img.IMAGE_ID || img.imageId,
+            url: pathToUrl(img.imagePath || img.IMAGE_PATH || ''),
+            thumbUrl: thumbUrl(img.imagePath || img.IMAGE_PATH || ''),
+            label: img.label || img.LABEL || '',
+            caption: img.caption || img.CAPTION || null
+          };
+        });
+        // 기존 캡션이 있는 이미지는 captionedImages에도 추가
+        this.captionedImages = this.images.filter(function(img) { return img.caption; });
+      } catch (err) {
+        // API가 아직 없을 수 있으므로 조용히 실패
+        this.images = [];
+      }
+      this.loadingImages = false;
+    },
+
+    async loadExistingDataset() {
+      try {
+        var res = await fetch('/api/characters/' + encodeURIComponent(this.selectedCharId) + '/lora/dataset');
+        if (!res.ok) return;
+        var json = await res.json();
+        if (json.data && json.data.datasetId) {
+          this.datasetId = json.data.datasetId;
+          this.datasetStatus = json.data.status || 'preparing';
+          this.triggerWord = json.data.triggerWord || '';
+          this.datasetName = json.data.name || '';
+        }
+      } catch (err) {
+        // 기존 데이터셋이 없으면 무시
+      }
+    },
+
+    toggleImage(imgId) {
+      var idx = this.selectedImages.indexOf(imgId);
+      if (idx >= 0) {
+        this.selectedImages.splice(idx, 1);
+      } else {
+        this.selectedImages.push(imgId);
+      }
+    },
+
+    toggleSelectAll() {
+      var self = this;
+      if (this.allSelected) {
+        this.selectedImages = [];
+      } else {
+        this.selectedImages = this.images.map(function(img) { return img.id; });
+      }
+    },
+
+    statusLabel(status) {
+      var map = { preparing: '준비 중', captioning: '캡셔닝 진행 중', ready: '완료' };
+      return map[status] || status || '알 수 없음';
+    },
+
+    async createDataset() {
+      if (this.selectedImages.length === 0) {
+        showToast('이미지를 선택해 주세요.', 'error');
+        return;
+      }
+      if (!this.datasetName.trim()) {
+        showToast('데이터셋 이름을 입력해 주세요.', 'error');
+        return;
+      }
+      if (!this.triggerWord.trim()) {
+        showToast('트리거 워드를 입력해 주세요.', 'error');
+        return;
+      }
+
+      this.creatingDataset = true;
+      try {
+        var res = await fetch('/api/characters/' + encodeURIComponent(this.selectedCharId) + '/lora/dataset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageIds: this.selectedImages,
+            name: this.datasetName.trim(),
+            triggerWord: this.triggerWord.trim()
+          })
+        });
+        var json = await res.json();
+        if (json.success && json.data) {
+          this.datasetId = json.data.datasetId || json.data.id;
+          this.datasetStatus = 'preparing';
+          showToast('데이터셋이 생성되었습니다.', 'success');
+        } else {
+          showToast(json.error || '데이터셋 생성에 실패했습니다.', 'error');
+        }
+      } catch (err) {
+        showToast('요청 실패: ' + err.message, 'error');
+      }
+      this.creatingDataset = false;
+    },
+
+    async startCaptioning() {
+      this.captioningStarted = true;
+      this.captionProgress = { current: 0, total: this.images.length, status: 'running' };
+
+      try {
+        // 캡셔닝 요청
+        fetch('/api/characters/' + encodeURIComponent(this.selectedCharId) + '/lora/caption', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ datasetId: this.datasetId })
+        });
+
+        // SSE 스트림 연결
+        var self = this;
+        if (this.eventSource) this.eventSource.close();
+        this.eventSource = new EventSource(
+          '/api/characters/' + encodeURIComponent(this.selectedCharId) + '/lora/caption/stream'
+        );
+
+        this.eventSource.onmessage = function(e) {
+          try {
+            var data = JSON.parse(e.data);
+            self.captionProgress = {
+              current: data.current || data.completed || 0,
+              total: data.total || self.images.length,
+              status: data.status || 'running'
+            };
+
+            // 개별 이미지 캡션 업데이트
+            if (data.imageId && data.caption) {
+              var found = false;
+              for (var i = 0; i < self.captionedImages.length; i++) {
+                if (self.captionedImages[i].id === data.imageId) {
+                  self.captionedImages[i].caption = data.caption;
+                  found = true;
+                  break;
+                }
+              }
+              if (!found) {
+                // images 배열에서 해당 이미지 정보 찾기
+                for (var j = 0; j < self.images.length; j++) {
+                  if (self.images[j].id === data.imageId) {
+                    var captioned = Object.assign({}, self.images[j], { caption: data.caption });
+                    self.captionedImages.push(captioned);
+                    self.images[j].caption = data.caption;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (data.status === 'completed') {
+              self.datasetStatus = 'ready';
+              self.captioningStarted = false;
+              self.eventSource.close();
+              self.eventSource = null;
+              showToast('캡셔닝이 완료되었습니다.', 'success');
+            } else if (data.status === 'failed') {
+              self.captioningStarted = false;
+              self.eventSource.close();
+              self.eventSource = null;
+              showToast('캡셔닝 중 오류가 발생했습니다.', 'error');
+            }
+          } catch (err) { /* ignore parse errors */ }
+        };
+
+        this.eventSource.onerror = function() {
+          self.captioningStarted = false;
+          if (self.eventSource) { self.eventSource.close(); self.eventSource = null; }
+        };
+      } catch (err) {
+        this.captioningStarted = false;
+        showToast('캡셔닝 시작 실패: ' + err.message, 'error');
+      }
+    },
+
+    startEditCaption(img) {
+      this.editingCaptionId = img.id;
+      this.editingCaptionText = img.caption || '';
+    },
+
+    cancelEditCaption() {
+      this.editingCaptionId = null;
+      this.editingCaptionText = '';
+    },
+
+    async saveCaption(img) {
+      try {
+        var res = await fetch(
+          '/api/characters/' + encodeURIComponent(this.selectedCharId) + '/lora/caption/' + encodeURIComponent(img.id),
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ caption: this.editingCaptionText })
+          }
+        );
+        var json = await res.json();
+        if (json.success) {
+          // 로컬 상태 업데이트
+          img.caption = this.editingCaptionText;
+          for (var i = 0; i < this.images.length; i++) {
+            if (this.images[i].id === img.id) {
+              this.images[i].caption = this.editingCaptionText;
+              break;
+            }
+          }
+          showToast('캡션이 저장되었습니다.', 'success');
+        } else {
+          showToast(json.error || '캡션 저장에 실패했습니다.', 'error');
+        }
+      } catch (err) {
+        showToast('요청 실패: ' + err.message, 'error');
+      }
+      this.editingCaptionId = null;
+      this.editingCaptionText = '';
+    }
+  };
+}
+</script>
