@@ -19,3 +19,12 @@ export const GLOBAL_STYLE: string =
 
 export const GLOBAL_NEGATIVE: string =
   'worst quality, low quality, blurry, deformed, extra limbs, bad anatomy, watermark, text, signature, ugly, duplicate, anime, cartoon, illustration, drawing, painting, 3d render, cgi';
+
+// ─── 앵커/마스터 이미지 전용 스타일 (flat lighting, 증명사진) ──
+
+export const ANCHOR_STYLE = {
+  positive:
+    'photorealistic, ultra realistic, 8k uhd, RAW photo, sharp focus, flat studio lighting, soft even light, no harsh shadows, extremely bright and clear, plain solid light gray background, highly detailed skin texture, visible pores, distinct facial features, 85mm lens, professional photography',
+  negative:
+    'cinematic lighting, dramatic shadows, rim lighting, neon lights, backlight, sun flare, golden hour, warm light, colored lighting, lens flare, volumetric light, god rays, dappled light, bokeh, depth of field, blurry background',
+};

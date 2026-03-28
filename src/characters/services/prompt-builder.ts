@@ -23,7 +23,7 @@
  */
 
 import { CharacterAppearance } from '../types/character.types';
-import { GLOBAL_STYLE } from '../templates/global-style';
+import { GLOBAL_STYLE, ANCHOR_STYLE } from '../templates/global-style';
 import { SCENE_PRESETS } from '../templates/scene-types';
 import { LIGHTING_PRESETS } from '../templates/time-weather';
 import { buildCharacterTags, buildExpressionTag, buildAngleTag } from '../templates/character-tags';
@@ -98,7 +98,13 @@ export function generateCandidatePrompts(
 
           const expressionTag = buildExpressionTag(expression);
           const angleTag = buildAngleTag(angle);
-          const prompt = assemblePrompt(charTags, scene.prompt, expressionTag, angleTag, lighting.prompt);
+          const prompt = assemblePrompt(
+            charTags,
+            scene.prompt,
+            expressionTag,
+            angleTag,
+            lighting.prompt,
+          );
 
           candidates.push({
             prompt,
@@ -112,6 +118,74 @@ export function generateCandidatePrompts(
         }
       }
     }
+  }
+
+  return candidates;
+}
+
+// ─── 앵커/마스터 이미지 전용 프롬프트 빌더 ──────────────────
+//
+// Gemini 조언 반영: flat lighting, 정면, 무표정/미소만, 단색 배경
+// → FaceID 합성 & LoRA 학습에 최적인 "증명사진" 스타일
+//
+
+const ANCHOR_EXPRESSIONS = [
+  { key: 'neutral', tags: 'calm neutral expression, relaxed face, natural look' },
+  { key: 'slight_smile', tags: 'slight gentle smile, subtle smile, natural expression' },
+] as const;
+
+const ANCHOR_ANGLES = [
+  { key: 'front', tags: 'front view, looking directly at camera, eye contact, centered face' },
+  { key: 'slight_turn', tags: 'very slight head turn, mostly front facing, looking at camera' },
+] as const;
+
+const ANCHOR_SCENE =
+  'head and shoulders portrait, centered composition, simple clean framing, extreme face detail, highly detailed skin texture, visible pores, 85mm lens';
+const ANCHOR_LIGHTING =
+  'flat studio lighting, soft even light, no harsh shadows, softbox lighting, extremely bright and clear';
+
+/**
+ * 앵커/마스터 이미지용 후보 프롬프트를 생성한다.
+ *
+ * 정면 + 무표정/미소 + flat studio lighting + 단색 배경만 사용.
+ * 변형은 시드만 다르게 하여 얼굴 디테일 극대화.
+ */
+export function generateAnchorCandidatePrompts(
+  appearance: CharacterAppearance,
+  count: number = 10,
+): CandidatePrompt[] {
+  const charTags = buildCharacterTags(appearance);
+  const baseNegative = buildNegativePrompt({ includeFace: true, includeBody: true });
+  const negativePrompt = [baseNegative, ANCHOR_STYLE.negative].join(', ');
+
+  const candidates: CandidatePrompt[] = [];
+
+  // 표정(2) × 각도(2) = 4 조합, count에 맞게 반복
+  let idx = 0;
+  while (candidates.length < count) {
+    const expr = ANCHOR_EXPRESSIONS[idx % ANCHOR_EXPRESSIONS.length];
+    const angle = ANCHOR_ANGLES[Math.floor(idx / ANCHOR_EXPRESSIONS.length) % ANCHOR_ANGLES.length];
+
+    const prompt = [
+      ANCHOR_STYLE.positive,
+      ANCHOR_SCENE,
+      charTags,
+      expr.tags,
+      angle.tags,
+      ANCHOR_LIGHTING,
+    ].join(', ');
+
+    candidates.push({
+      prompt,
+      negativePrompt,
+      seed: randomSeed(),
+      expression: expr.key,
+      angle: angle.key,
+      lighting: 'studio_flat',
+      scene: 'master_portrait',
+    });
+
+    idx += 1;
   }
 
   return candidates;

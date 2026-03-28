@@ -51,6 +51,13 @@
     </div>
 
     <div id="step-log" class="mt-4 max-h-40 overflow-y-auto bg-[#1b1b1d] rounded-lg p-3 text-xs font-mono text-[#ccc3d8] space-y-1"></div>
+
+    <!-- 중지 버튼 -->
+    <div id="action-buttons" class="mt-4 flex gap-3">
+      <button id="stop-btn" class="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-lg transition">
+        중지
+      </button>
+    </div>
   </div>
 
   <!-- 결과 그리드 -->
@@ -135,6 +142,8 @@
     if (results.length > 0) document.getElementById('results-area').classList.remove('hidden');
   }
 
+  var isStopping = false;
+
   function updateStatus(data) {
     var pct = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0;
     document.getElementById('progress-bar').style.width = pct + '%';
@@ -152,20 +161,66 @@
     addLog(data.currentStep || data.status);
     if (data.results) renderResults(data.results);
 
+    var stopBtn = document.getElementById('stop-btn');
     if (data.status === 'completed') {
       document.getElementById('status-icon').className = 'w-10 h-10 rounded-full bg-green-900/50 flex items-center justify-center';
       document.getElementById('spinner-svg').className = '';
       document.getElementById('spinner-svg').textContent = '\u2714';
       document.getElementById('spinner-svg').style.color = '#4ade80';
       addLog('전체 파생 이미지 생성 완료!');
+      stopBtn.disabled = true;
+      stopBtn.className = 'bg-gray-600 text-white text-sm px-4 py-2 rounded-lg cursor-not-allowed opacity-50';
+    } else if (data.status === 'stopped') {
+      document.getElementById('status-icon').className = 'w-10 h-10 rounded-full bg-yellow-900/50 flex items-center justify-center';
+      document.getElementById('spinner-svg').className = '';
+      document.getElementById('spinner-svg').textContent = '\u26A0';
+      document.getElementById('spinner-svg').style.color = '#fbbf24';
+      addLog('생성이 중단되었습니다');
+      stopBtn.disabled = true;
+      stopBtn.className = 'bg-gray-600 text-white text-sm px-4 py-2 rounded-lg cursor-not-allowed opacity-50';
     } else if (data.status === 'failed') {
       document.getElementById('status-icon').className = 'w-10 h-10 rounded-full bg-red-900/50 flex items-center justify-center';
       document.getElementById('spinner-svg').className = '';
       document.getElementById('spinner-svg').textContent = '\u2718';
       document.getElementById('spinner-svg').style.color = '#f87171';
       addLog('생성 실패');
+      stopBtn.disabled = true;
+      stopBtn.className = 'bg-gray-600 text-white text-sm px-4 py-2 rounded-lg cursor-not-allowed opacity-50';
     }
   }
+
+  // 중지 버튼 클릭 이벤트
+  document.getElementById('stop-btn').addEventListener('click', function() {
+    if (isStopping || this.disabled) return;
+    isStopping = true;
+    this.disabled = true;
+    this.textContent = '중지 중...';
+    this.className = 'bg-gray-600 text-white text-sm px-4 py-2 rounded-lg cursor-not-allowed opacity-50';
+
+    fetch('/api/characters/derivatives/' + JOB_ID + '/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        addLog('중지 요청 완료');
+      } else {
+        addLog('중지 요청 실패: ' + (data.error || '알 수 없는 오류'));
+        isStopping = false;
+        document.getElementById('stop-btn').disabled = false;
+        document.getElementById('stop-btn').textContent = '중지';
+        document.getElementById('stop-btn').className = 'bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-lg transition';
+      }
+    })
+    .catch(function(err) {
+      addLog('중지 요청 실패: ' + err.message);
+      isStopping = false;
+      document.getElementById('stop-btn').disabled = false;
+      document.getElementById('stop-btn').textContent = '중지';
+      document.getElementById('stop-btn').className = 'bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-lg transition';
+    });
+  });
 
   addLog('서버 연결 중...');
   var evtSource = new EventSource('/api/characters/derivatives/' + JOB_ID + '/stream');
@@ -174,7 +229,7 @@
     try {
       var data = JSON.parse(e.data);
       updateStatus(data);
-      if (data.status === 'completed' || data.status === 'failed') evtSource.close();
+      if (data.status === 'completed' || data.status === 'failed' || data.status === 'stopped') evtSource.close();
     } catch (err) { /* ignore */ }
   };
 

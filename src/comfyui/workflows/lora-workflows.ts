@@ -105,32 +105,23 @@ export interface LoraInferenceOptions {
   filenamePrefix?: string;
 }
 
-/**
- * LoRA 적용 추론 워크플로우를 생성한다.
- * UNETLoader + DualCLIPLoader -> LoraLoader -> CLIPTextEncode -> KSampler -> VAEDecode -> SaveImage
- */
+/** LoRA 적용 추론 워크플로우를 생성한다. */
 export function buildLoraInferenceWorkflow(opts: LoraInferenceOptions): ComfyUIWorkflow {
-  const strength = opts.loraStrength ?? INFERENCE_DEFAULTS.loraStrength;
-  const steps = opts.steps ?? INFERENCE_DEFAULTS.steps;
-  const cfg = opts.cfg ?? INFERENCE_DEFAULTS.cfg;
-  const prefix = opts.filenamePrefix ?? INFERENCE_DEFAULTS.filenamePrefix;
+  const D = INFERENCE_DEFAULTS;
+  const strength = opts.loraStrength ?? D.loraStrength;
+  const steps = opts.steps ?? D.steps;
+  const cfg = opts.cfg ?? D.cfg;
+  const prefix = opts.filenamePrefix ?? D.filenamePrefix;
 
   return {
     '1': {
       class_type: 'UNETLoader',
       inputs: { unet_name: KONTEXT_MODEL, weight_dtype: 'default' },
     },
-    '2': {
-      class_type: 'VAELoader',
-      inputs: { vae_name: INFERENCE_DEFAULTS.vae },
-    },
+    '2': { class_type: 'VAELoader', inputs: { vae_name: D.vae } },
     '3': {
       class_type: 'DualCLIPLoader',
-      inputs: {
-        clip_name1: INFERENCE_DEFAULTS.clipL,
-        clip_name2: INFERENCE_DEFAULTS.t5xxl,
-        type: 'flux',
-      },
+      inputs: { clip_name1: D.clipL, clip_name2: D.t5xxl, type: 'flux' },
     },
     '4': {
       class_type: 'LoraLoader',
@@ -142,17 +133,10 @@ export function buildLoraInferenceWorkflow(opts: LoraInferenceOptions): ComfyUIW
         strength_clip: strength,
       },
     },
-    '5': {
-      class_type: 'CLIPTextEncode',
-      inputs: { text: opts.prompt, clip: ['4', 1] },
-    },
+    '5': { class_type: 'CLIPTextEncode', inputs: { text: opts.prompt, clip: ['4', 1] } },
     '6': {
       class_type: 'EmptyLatentImage',
-      inputs: {
-        width: INFERENCE_DEFAULTS.width,
-        height: INFERENCE_DEFAULTS.height,
-        batch_size: 1,
-      },
+      inputs: { width: D.width, height: D.height, batch_size: 1 },
     },
     '7': {
       class_type: 'KSampler',
@@ -164,18 +148,12 @@ export function buildLoraInferenceWorkflow(opts: LoraInferenceOptions): ComfyUIW
         seed: opts.seed,
         steps,
         cfg,
-        sampler_name: INFERENCE_DEFAULTS.sampler,
-        scheduler: INFERENCE_DEFAULTS.scheduler,
+        sampler_name: D.sampler,
+        scheduler: D.scheduler,
         denoise: 1.0,
       },
     },
-    '8': {
-      class_type: 'VAEDecode',
-      inputs: { samples: ['7', 0], vae: ['2', 0] },
-    },
-    '9': {
-      class_type: 'SaveImage',
-      inputs: { images: ['8', 0], filename_prefix: prefix },
-    },
+    '8': { class_type: 'VAEDecode', inputs: { samples: ['7', 0], vae: ['2', 0] } },
+    '9': { class_type: 'SaveImage', inputs: { images: ['8', 0], filename_prefix: prefix } },
   };
 }

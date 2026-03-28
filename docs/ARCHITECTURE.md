@@ -2,7 +2,7 @@
 
 > 이 문서는 프로젝트의 **현재 상태**를 반영합니다.
 > 구조 변경 시 **반드시** 이 문서를 업데이트하세요.
-> 마지막 업데이트: 2026-03-27
+> 마지막 업데이트: 2026-03-28
 
 ---
 
@@ -140,6 +140,7 @@ C:\VideoFactory\
 │   │   │   ├── episode-queries.ts     에피소드 CRUD
 │   │   │   ├── comment-queries.ts     댓글 CRUD
 │   │   │   ├── reference-queries.ts   레퍼런스 CRUD
+│   │   │   ├── lora-queries.ts        LoRA 5개 테이블 SQL (datasets, images, jobs, checkpoints, evals)
 │   │   │   ├── vector-search.ts       Vector 유사도 검색
 │   │   │   ├── graph-relations.ts     Graph 관계 쿼리 (GRAPH_TABLE)
 │   │   │   └── json-profile.ts        JSON Duality 쿼리
@@ -149,16 +150,21 @@ C:\VideoFactory\
 │   ├── characters/                    👤 캐릭터 생성 파이프라인
 │   │   ├── README.md
 │   │   ├── routes/
-│   │   │   └── character-routes.ts    /api/characters/* 라우트
+│   │   │   ├── character-routes.ts    /api/characters/* 라우트
+│   │   │   └── lora-routes.ts         /api/lora/* 라우트 (12 엔드포인트)
 │   │   ├── services/
-│   │   │   ├── candidate-generator.ts 후보 이미지 배치 생성
+│   │   │   ├── candidate-generator.ts 후보 이미지 배치 생성 (Kontext)
 │   │   │   ├── prompt-builder.ts      프롬프트 3계층 조합
 │   │   │   ├── quality-scorer.ts      품질 자동 스코어링
 │   │   │   ├── anchor-selector.ts     앵커 이미지 확정 처리
-│   │   │   ├── derivative-generator.ts IP-Adapter 다각도 파생
-│   │   │   └── reference-manager.ts   레퍼런스 세트 관리 + DB 등록
+│   │   │   ├── derivative-generator.ts Kontext 편집 기반 파생
+│   │   │   ├── derivative-presets.ts  파생 프리셋 (포즈/표정/앵글)
+│   │   │   ├── reference-manager.ts   레퍼런스 세트 관리 + DB 등록
+│   │   │   ├── lora-dataset.ts        LoRA 데이터셋 생성 + Florence-2 캡셔닝
+│   │   │   └── lora-training.ts       LoRA 학습 실행 + 추론 테스트
 │   │   ├── types/
-│   │   │   └── character.types.ts     캐릭터 관련 인터페이스
+│   │   │   ├── character.types.ts     캐릭터 관련 인터페이스
+│   │   │   └── lora.types.ts          LoRA 도메인 인터페이스
 │   │   └── templates/
 │   │       ├── global-style.ts        Layer 1 글로벌 스타일 프롬프트
 │   │       ├── scene-types.ts         Layer 2 씬 타입 6종 프리셋
@@ -264,6 +270,10 @@ C:\VideoFactory\
 │   │   ├── client.ts                  WebSocket 클라이언트
 │   │   ├── workflow-builder.ts        워크플로우 JSON 동적 생성
 │   │   ├── queue-manager.ts           생성 큐 + 상태 추적
+│   │   ├── workflows/                 워크플로우 정의 모듈
+│   │   │   ├── kontext-workflows.ts   FLUX.1 Kontext 앵커/편집 워크플로우
+│   │   │   ├── lora-workflows.ts      FluxTrainer 학습 + LoRA 추론 워크플로우
+│   │   │   └── caption-workflows.ts   Florence-2 캡셔닝 워크플로우
 │   │   └── types/
 │   │       └── comfyui.types.ts       ComfyUI API 타입
 │   │
@@ -298,6 +308,7 @@ C:\VideoFactory\
 │       │   │   └── styles.css         Tailwind 빌드 결과
 │       │   ├── js/
 │       │   │   ├── characters.js      캐릭터 선택 UI 로직
+│       │   │   ├── lora.js            LoRA 데이터셋/학습 UI 인터랙션
 │       │   │   ├── episodes.js        대본 검수 UI 로직
 │       │   │   ├── dashboard.js       대시보드 로직
 │       │   │   └── common.js          공통 유틸 (fetch 래퍼 등)
@@ -309,6 +320,8 @@ C:\VideoFactory\
 │       │   ├── characters/
 │       │   │   ├── candidates.html    후보 그리드
 │       │   │   ├── derivatives.html   파생 이미지 검수
+│       │   │   ├── lora-dataset.ejs   데이터셋 + 캡션 관리 UI
+│       │   │   ├── lora-training.ejs  학습 모니터 + 체크포인트 평가 UI
 │       │   │   └── manage.html        캐릭터 관리
 │       │   ├── episodes/
 │       │   │   ├── script-editor.html 대본 에디터
@@ -421,10 +434,15 @@ C:\VideoFactory\ai-services\          🐍 Python FastAPI (AI/LLM 전담)
 ```
 === Node.js (오케스트레이션) ===
 
-characters ──→ comfyui (이미지 생성)
-           ──→ db (Oracle CRUD)
+characters ──→ comfyui (이미지 생성: Kontext 앵커/편집)
+           ──→ comfyui/workflows (Kontext, LoRA, Caption 워크플로우)
+           ──→ db (Oracle CRUD + LoRA 5개 테이블)
            ──→ python-api → [Python] embedding (CLIP 임베딩)
            ──→ python-api → [Python] quality (품질 스코어링)
+
+lora       ──→ comfyui/workflows (FluxTrainer 학습, Florence-2 캡셔닝)
+           ──→ db/lora-queries (데이터셋, 학습 잡, 체크포인트, 평가)
+           ──→ characters (앵커/파생 이미지 → 데이터셋 소스)
 
 episodes   ──→ db (에피소드 CRUD)
            ──→ python-api → [Python] script (대본 생성 전체)
@@ -533,6 +551,22 @@ GET    /                          캐릭터 목록
 GET    /:charId                   캐릭터 상세
 ```
 
+### LoRA (/api/lora)
+```
+POST   /datasets                    데이터셋 생성
+GET    /datasets/:charId            데이터셋 조회
+POST   /datasets/:datasetId/images  이미지 추가
+DELETE /datasets/:datasetId/images/:imageId  이미지 삭제
+POST   /datasets/:datasetId/caption 자동 캡셔닝 (Florence-2)
+PUT    /datasets/:datasetId/images/:imageId/caption  캡션 수정
+POST   /training/start              학습 시작
+GET    /training/:jobId/status      학습 상태 조회
+POST   /training/:jobId/cancel      학습 취소
+GET    /training/:jobId/checkpoints 체크포인트 목록
+POST   /training/evaluate           체크포인트 추론 테스트
+POST   /training/:jobId/checkpoints/:step/select  체크포인트 확정
+```
+
 ### 에피소드 (/api/episodes)
 ```
 POST   /generate                  대본 생성
@@ -586,6 +620,26 @@ POST   /api/npc/interact          NPC 간 상호작용 생성
 
 ---
 
+## ComfyUI 커스텀 노드 (필수 설치)
+
+> LoRA 파이프라인 운영에 필요한 ComfyUI 커스텀 노드 목록.
+> ComfyUI Manager에서 설치하거나, custom_nodes/ 디렉토리에 직접 클론.
+
+| 노드 | 용도 | 비고 |
+|------|------|------|
+| ComfyUI-KontextWrapper | FLUX.1 Kontext 앵커/편집 | 캐릭터 후보 생성 + 파생 이미지 |
+| ComfyUI-FluxTrainer | LoRA 학습 (FluxTrainer) | 데이터셋 → LoRA 모델 산출 |
+| ComfyUI-Florence2 | Florence-2 자동 캡셔닝 | LoRA 데이터셋 캡션 생성 |
+| ComfyUI-GGUF | GGUF 양자화 모델 로드 | FLUX GGUF 지원 |
+| ComfyUI-ADetailer | 얼굴/손 자동 보정 | 후처리 디테일 업 |
+| ComfyUI-Advanced-ControlNet | 고급 ControlNet | 포즈/깊이 제어 |
+| comfyui_controlnet_aux | ControlNet 전처리기 | OpenPose, Depth 등 |
+
+> **참고**: `src/gemini/` 모듈은 삭제됨 (Gemini API 직접 호출 → ComfyUI Kontext 워크플로우로 대체).
+> 이미지 생성/편집은 전부 ComfyUI WebSocket 경유로 통일.
+
+---
+
 ## 변경 이력
 
 | 날짜 | 변경 | 담당 |
@@ -597,4 +651,9 @@ POST   /api/npc/interact          NPC 간 상호작용 생성
 | 2026-03-27 | 유튜브 컨텐츠 포맷 (먹방/강화쇼/언박싱) 추가 | 09번 설계 문서, Oracle 3개 테이블 추가 |
 | 2026-03-27 | 아이템 비주얼 일관성 3 Tier 전략 추가 | 08번 문서 업데이트, item_ref_images 테이블 |
 | 2026-03-27 | BLOB 이중 저장 + 장소 비주얼 일관성 추가 | 전 테이블 BLOB 컬럼, locations + location_ref_images 테이블 |
+| 2026-03-28 | Gemini 제거 + ComfyUI Kontext 전환 | src/gemini/ 삭제, Kontext 워크플로우로 대체 |
+| 2026-03-28 | LoRA 파이프라인 추가 | 데이터셋, 캡셔닝, 학습, 추론, 평가 전체 구현 |
+| 2026-03-28 | ComfyUI workflows/ 모듈 신설 | kontext, lora, caption 워크플로우 분리 |
+| 2026-03-28 | LoRA REST API (12 엔드포인트) | lora-routes.ts, lora-queries.ts 추가 |
+| 2026-03-28 | LoRA 웹 UI 추가 | 데이터셋 관리 + 학습 모니터 페이지 |
 | | 다음 변경 시 여기에 추가 | |

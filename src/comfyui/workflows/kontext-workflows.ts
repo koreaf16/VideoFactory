@@ -100,7 +100,7 @@ function buildSamplerInputs(p: {
   steps: number;
   cfg: number;
   denoise: number;
-}) {
+}): Record<string, unknown> {
   return {
     model: ['1', 0],
     positive: [p.positiveId, 0],

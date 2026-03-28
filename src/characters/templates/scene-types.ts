@@ -29,10 +29,24 @@ export interface ScenePreset {
 // ─── 6종 씬 프리셋 ─────────────────────────────────────────
 
 export const SCENE_PRESETS: readonly ScenePreset[] = [
-  { name: 'portrait_bust', prompt: 'upper body portrait, shallow depth of field, bokeh background' },
-  { name: 'portrait_full', prompt: 'full body portrait, standing pose, natural environment background' },
+  {
+    name: 'portrait_bust',
+    prompt: 'upper body portrait, shallow depth of field, bokeh background',
+  },
+  {
+    name: 'portrait_full',
+    prompt: 'full body portrait, standing pose, natural environment background',
+  },
   { name: 'action_pose', prompt: 'dynamic candid shot, motion captured, natural moment' },
   { name: 'casual_scene', prompt: 'casual lifestyle photo, warm natural atmosphere, daily life' },
   { name: 'dramatic', prompt: 'dramatic Rembrandt lighting, dark moody background, rim light' },
-  { name: 'closeup_face', prompt: 'extreme close-up face, skin texture detail, catch light in eyes, 85mm lens' },
+  {
+    name: 'closeup_face',
+    prompt: 'extreme close-up face, skin texture detail, catch light in eyes, 85mm lens',
+  },
+  {
+    name: 'master_portrait',
+    prompt:
+      'head and shoulders portrait, centered composition, simple clean framing, extreme face detail, highly detailed skin texture, visible pores, 85mm lens, f/2.8',
+  },
 ] as const;

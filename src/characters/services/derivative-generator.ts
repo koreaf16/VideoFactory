@@ -4,16 +4,15 @@
  *
  * ┌──────────┐     ┌───────────┐     ┌──────────────┐     ┌──────────┐
  * │ 프리셋   │ ──→ │ ComfyUI   │ ──→ │face_recognition│ ──→ │ 유사: 유지│
- * │ + 외모   │     │(InstantID)│     │ (유사도 비교)  │     │ 비유사: 삭제│
+ * │ + 외모   │     │(Kontext)  │     │ (유사도 비교)  │     │ 비유사: 삭제│
  * └──────────┘     └───────────┘     └──────────────┘     └──────────┘
  *       ↑                                                      │
  *  30장 미만이면 ←────────────── 반복 ────────────────────────────┘
  *
- * @dependencies comfyui, workflow-builder, face_recognition, db
+ * @dependencies comfyui, derivative-presets, derivative-filter, db
  * @author AI Video Factory
  */
 
-import fs from 'fs';
 import path from 'path';
 import { EventEmitter } from 'events';
 import { comfyuiClient } from '../../comfyui/client';
@@ -23,20 +22,19 @@ import { getConnection } from '../../db/connection';
 import { generateJobId } from '../../common/utils/time-utils';
 import { ensureDir, writeFileBuffer } from '../../common/utils/file-utils';
 import { createThumbnail } from '../../common/utils/image-utils';
-import { compareFaces } from '../../python-api/endpoints/embedding-api';
 import { logger } from '../../common/logger';
 import {
   DERIVATIVE_PRESETS,
-  FACE_SIMILARITY_THRESHOLD,
   extractAppearanceOnly,
   type DerivativePreset,
   type DerivativeResult,
   type DerivativeJob,
 } from './derivative-presets';
+import { filterAndDeleteDissimilar } from './derivative-filter';
 
 export type { DerivativeResult, DerivativeJob };
 
-// ─── SSE 이벤트 에미터 ──────────────────────────────────
+// ─── SSE 이벤트 에미터 ───────────────���──────────────────
 
 export const derivativeEvents = new EventEmitter();
 derivativeEvents.setMaxListeners(50);
@@ -60,9 +58,9 @@ function emitProgress(job: DerivativeJob): void {
 const activeJobs: Map<string, DerivativeJob> = new Map();
 const EXPORTS_BASE = path.resolve('exports/derivatives');
 
-// ─── 공개 API ───────────────────────────────────────────
+// ─── 공개 API ─────────────────���─────────────────────────
 
-/** 파생 이미지 생성을 시작한다. 목표 수량까지 반복 생성. */
+/** 파생 이미지 생성을 시작한다. 목표 수량까�� 반복 생성. */
 export function startDerivativeGeneration(
   charId: string,
   anchorPath: string,
@@ -84,7 +82,7 @@ export function startDerivativeGeneration(
   };
 
   activeJobs.set(jobId, job);
-  logger.info('파생 생성 시작 (유사도 필터링 모드)', { jobId, charId, targetCount: job.total });
+  logger.info('파생 생성 시작 (유사도 필터�� 모드)', { jobId, charId, targetCount: job.total });
 
   processDerivativeLoop(job, basePrompt).catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
@@ -126,7 +124,6 @@ async function generateOneImage(
   job.currentStep = `${preset.label} 생성 중... (${job.generated + 1}/${job.total})`;
   emitProgress(job);
 
-  // Upload anchor to ComfyUI and generate via Kontext edit
   await comfyuiClient.connect();
   const anchorName = await comfyuiClient.uploadImage(job.anchorPath);
   const editPrompt = `same character, ${preset.promptSuffix}`;
@@ -150,7 +147,6 @@ async function generateOneImage(
   const thumbnail = await createThumbnail(imageBuffer);
   await writeFileBuffer(path.join(outDir, `thumb_${filename}`), thumbnail);
 
-  // DB 저장
   const refId = await saveDerivativeToDb(job.charId, imagePath, preset.label);
   job.generated += 1;
 
@@ -186,93 +182,7 @@ async function saveDerivativeToDb(
   }
 }
 
-// ─── 유사도 필터링 + 삭제 ───────────────────────────────
-
-async function filterAndDeleteDissimilar(
-  job: DerivativeJob,
-  batchResults: DerivativeResult[],
-): Promise<DerivativeResult[]> {
-  if (batchResults.length === 0) return [];
-
-  const toFilter = batchResults.filter((r) => !r.skipSimilarity);
-  const skipped = batchResults.filter((r) => r.skipSimilarity);
-  if (toFilter.length === 0) return batchResults;
-
-  job.status = 'filtering';
-  job.currentStep = `얼굴 유사도 분석 중... (${toFilter.length}장, ${skipped.length}장 스킵)`;
-  emitProgress(job);
-
-  let compareResult;
-  try {
-    compareResult = await compareFaces(
-      job.anchorPath,
-      toFilter.map((r) => r.imagePath),
-      FACE_SIMILARITY_THRESHOLD,
-    );
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    logger.error('얼굴 비교 API 호출 실패', { error: msg });
-    return batchResults;
-  }
-
-  const similarPaths = new Set(compareResult.results.filter((r) => r.similar).map((r) => r.path));
-  const kept: DerivativeResult[] = [...skipped];
-  const toDelete: DerivativeResult[] = [];
-
-  for (const result of toFilter) {
-    if (similarPaths.has(result.imagePath)) {
-      result.distance = compareResult.results.find((r) => r.path === result.imagePath)?.distance;
-      kept.push(result);
-    } else {
-      toDelete.push(result);
-    }
-  }
-
-  await deleteDissimilarImages(job, toDelete);
-
-  logger.info('유사도 필터링 완료', {
-    jobId: job.jobId,
-    batch: job.batch,
-    generated: batchResults.length,
-    kept: kept.length,
-    deleted: toDelete.length,
-  });
-  return kept;
-}
-
-async function deleteDissimilarImages(
-  job: DerivativeJob,
-  toDelete: DerivativeResult[],
-): Promise<void> {
-  for (const result of toDelete) {
-    try {
-      if (fs.existsSync(result.imagePath)) fs.unlinkSync(result.imagePath);
-      const thumbPath = path.join(
-        path.dirname(result.imagePath),
-        `thumb_${path.basename(result.imagePath)}`,
-      );
-      if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
-      if (result.refId) {
-        const conn = await getConnection();
-        try {
-          await conn.execute(
-            'DELETE FROM char_ref_images WHERE ref_id = :refId',
-            { refId: result.refId },
-            { autoCommit: true },
-          );
-        } finally {
-          await conn.close();
-        }
-      }
-      job.deleted += 1;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.warn('비유사 이미지 삭제 실패', { path: result.imagePath, error: msg });
-    }
-  }
-}
-
-// ─── 메인 루프 ──────────────────────────────────────────
+// ─── 메인 루프 ────���─────────────────────────────────────
 
 async function processDerivativeLoop(job: DerivativeJob, basePrompt: string): Promise<void> {
   const outDir = path.join(EXPORTS_BASE, job.charId, job.jobId);
@@ -298,7 +208,7 @@ async function processDerivativeLoop(job: DerivativeJob, basePrompt: string): Pr
   }
 
   const allGenerated = [...job.results];
-  const kept = await filterAndDeleteDissimilar(job, allGenerated);
+  const kept = await filterAndDeleteDissimilar(job, allGenerated, emitProgress);
   job.results = kept;
   job.status = 'completed';
   job.currentStep = `완료! ${kept.length}/${allGenerated.length}장 유사 통과 (${job.deleted}장 삭제)`;

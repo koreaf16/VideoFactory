@@ -29,8 +29,22 @@ export interface LightingPreset {
 
 export const LIGHTING_PRESETS: readonly LightingPreset[] = [
   { name: 'daylight', prompt: 'natural sunlight, bright outdoor, dappled light through trees' },
-  { name: 'golden_hour', prompt: 'golden hour, warm backlight, sun flare, long shadows, magic hour' },
+  {
+    name: 'golden_hour',
+    prompt: 'golden hour, warm backlight, sun flare, long shadows, magic hour',
+  },
   { name: 'overcast', prompt: 'overcast soft light, diffused even lighting, no harsh shadows' },
-  { name: 'studio', prompt: 'professional studio lighting, softbox, clean backdrop, fashion photography' },
-  { name: 'night', prompt: 'low key lighting, neon ambient glow, city night atmosphere, volumetric light' },
+  {
+    name: 'studio',
+    prompt: 'professional studio lighting, softbox, clean backdrop, fashion photography',
+  },
+  {
+    name: 'night',
+    prompt: 'low key lighting, neon ambient glow, city night atmosphere, volumetric light',
+  },
+  {
+    name: 'studio_flat',
+    prompt:
+      'flat studio lighting, soft even light, no harsh shadows, softbox lighting, extremely bright and clear, white reflector fill',
+  },
 ] as const;
