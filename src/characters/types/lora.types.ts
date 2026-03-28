@@ -1,0 +1,138 @@
+/**
+ * @module LoRA 학습 파이프라인 타입
+ * @description 데이터셋, 학습 작업, 체크포인트, 테스트 이미지 인터페이스.
+ *
+ * LoraDataset -> LoraDatasetImage[] -> LoraTrainingJob -> LoraCheckpoint[] -> LoraTestImage[]
+ *
+ * @author AI Video Factory
+ */
+
+// --- 데이터셋 ---
+
+export type DatasetStatus = 'preparing' | 'captioning' | 'ready' | 'training' | 'completed';
+
+export interface LoraDataset {
+  readonly datasetId: string;
+  readonly charId: string;
+  readonly name: string;
+  readonly triggerWord: string;
+  readonly status: DatasetStatus;
+  readonly imageCount: number;
+  readonly createdAt: Date;
+}
+
+export interface LoraDatasetImage {
+  readonly datasetImageId: string;
+  readonly datasetId: string;
+  readonly sourceType: 'candidate' | 'derivative';
+  readonly sourceId: string;
+  readonly imagePath: string;
+  readonly poseTag: string;
+  readonly captionAuto: string | null;
+  readonly captionEdited: string | null;
+  readonly approved: boolean;
+  readonly createdAt: Date;
+}
+
+// --- 학습 작업 ---
+
+export type TrainingStatus = 'queued' | 'training' | 'completed' | 'failed';
+
+export interface LoraTrainingConfig {
+  readonly networkDim: number;
+  readonly networkAlpha: number;
+  readonly learningRate: number;
+  readonly lrScheduler: string;
+  readonly maxTrainSteps: number;
+  readonly trainBatchSize: number;
+  readonly gradientAccumulation: number;
+  readonly mixedPrecision: string;
+  readonly optimizer: string;
+  readonly saveEveryNSteps: number;
+  readonly seed: number;
+}
+
+export const DEFAULT_TRAINING_CONFIG: LoraTrainingConfig = {
+  networkDim: 16,
+  networkAlpha: 16,
+  learningRate: 5e-5,
+  lrScheduler: 'cosine',
+  maxTrainSteps: 1500,
+  trainBatchSize: 1,
+  gradientAccumulation: 2,
+  mixedPrecision: 'bf16',
+  optimizer: 'AdamW8bit',
+  saveEveryNSteps: 200,
+  seed: 42,
+};
+
+export interface LoraTrainingJob {
+  readonly jobId: string;
+  readonly datasetId: string;
+  readonly charId: string;
+  readonly status: TrainingStatus;
+  readonly config: LoraTrainingConfig;
+  readonly currentStep: number;
+  readonly totalSteps: number;
+  readonly startedAt: Date | null;
+  readonly completedAt: Date | null;
+  readonly errorMessage: string | null;
+}
+
+// --- 체크포인트 ---
+
+export interface LoraCheckpoint {
+  readonly checkpointId: string;
+  readonly jobId: string;
+  readonly stepNumber: number;
+  readonly fileName: string;
+  readonly isSelected: boolean;
+  readonly createdAt: Date;
+}
+
+// --- 테스트 이미지 ---
+
+export interface LoraTestImage {
+  readonly testImageId: string;
+  readonly checkpointId: string;
+  readonly promptText: string;
+  readonly seed: number;
+  readonly loraStrength: number;
+  readonly imagePath: string;
+  readonly createdAt: Date;
+}
+
+// --- API 요청/응답 ---
+
+export interface CreateDatasetRequest {
+  readonly charId: string;
+  readonly name: string;
+  readonly triggerWord: string;
+  readonly imageIds: string[];
+}
+
+export interface StartTrainingRequest {
+  readonly charId: string;
+  readonly datasetId: string;
+  readonly config?: Partial<LoraTrainingConfig>;
+}
+
+export interface TestCheckpointRequest {
+  readonly charId: string;
+  readonly checkpointId: string;
+  readonly loraStrength?: number;
+}
+
+export interface SelectCheckpointRequest {
+  readonly charId: string;
+  readonly checkpointId: string;
+}
+
+/** 고정 테스트 프롬프트 5종 */
+export const TEST_PROMPTS: readonly string[] = [
+  'standing in the rain, holding umbrella, city street, night',
+  'wearing formal suit, office background, serious expression',
+  'beach setting, summer outfit, bright daylight, smiling',
+  'reading a book, library, warm lighting, seated',
+  'action pose, running, outdoor park, dynamic angle',
+];
