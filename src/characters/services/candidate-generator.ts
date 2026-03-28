@@ -12,10 +12,10 @@
  */
 
 import path from 'path';
-import { config } from '../../config';
 import { comfyuiClient } from '../../comfyui/client';
-import { buildWorkflow } from '../../comfyui/workflow-builder';
-import { generateCandidatePrompts, CandidatePrompt } from './prompt-builder';
+import { buildKontextAnchorWorkflow } from '../../comfyui/workflows/kontext-workflows';
+import { config } from '../../config';
+import { generateAnchorCandidatePrompts, CandidatePrompt } from './prompt-builder';
 import { buildNegativePrompt } from '../templates/negative-prompts';
 import { scoreImage } from '../../python-api/endpoints/quality-api';
 import { getConnection } from '../../db/connection';
@@ -45,7 +45,8 @@ export interface GenerationJob {
   total: number;
   completed: number;
   candidates: CandidateResult[];
-  shouldStop?: boolean;  // 중단 요청 플래그
+  lastError?: string;
+  shouldStop?: boolean;
 }
 
 // ─── 인메모리 작업 관리 ──────────────────────────────────
@@ -59,11 +60,6 @@ function assignGrade(score: number): string {
   return 'C';
 }
 
-function getComfyOutputUrl(filename: string, subfolder: string): string {
-  const params = new URLSearchParams({ filename, subfolder, type: 'output' });
-  return `${config.comfyui.httpUrl}/view?${params.toString()}`;
-}
-
 // ─── 공개 API ───────────────────────────────────────────
 
 /** 후보 이미지 배치 생성을 시작한다. jobId를 즉시 반환한다. */
@@ -75,29 +71,30 @@ export async function startCandidateGeneration(
   let prompts: CandidatePrompt[];
 
   if (customPrompt) {
-    // 커스텀 프롬프트 모드: 프롬프트에 다양한 변형을 추가해서 각각 다른 결과
-    const variations = [
+    // 커스텀 프롬프트 모드: 앵커용 flat lighting 변형 (증명사진 스타일)
+    const anchorVariations = [
       '', // 원본 그대로
-      ', close-up portrait, shallow depth of field',
-      ', full body shot, wide angle',
-      ', side profile view, dramatic lighting',
-      ', three quarter view, golden hour backlight',
-      ', candid natural moment, soft focus background',
-      ', looking away, contemplative mood',
-      ', bright smile, eye contact, studio lighting',
-      ', wind blowing hair, dynamic pose',
-      ', moody atmosphere, rim light, cinematic',
-      ', morning light, fresh atmosphere, outdoor',
-      ', urban background, street photography style',
+      ', front view, direct eye contact, neutral expression',
+      ', front view, slight smile, catch light in eyes',
+      ', slight head tilt, gentle expression, soft even light',
+      ', close-up face, extreme skin detail, sharp focus, 85mm lens',
+      ', head and shoulders, centered composition, simple framing',
+      ', front view, calm neutral expression, relaxed face',
+      ', front view, subtle smile, natural expression, clear skin',
+      ', very slight head turn, looking at camera, bright studio',
+      ', front portrait, highly detailed face, visible skin pores',
     ];
+    const anchorNegative =
+      buildNegativePrompt({ includeFace: true, includeBody: true }) +
+      ', cinematic lighting, dramatic shadows, rim lighting, backlight, sun flare, golden hour, bokeh, depth of field, blurry background';
     prompts = Array.from({ length: count }, (_, i) => ({
-      prompt: customPrompt + (variations[i % variations.length] || ''),
-      negativePrompt: buildNegativePrompt({ includeFace: true, includeBody: true }),
+      prompt: customPrompt + (anchorVariations[i % anchorVariations.length] || ''),
+      negativePrompt: anchorNegative,
       seed: Math.floor(Math.random() * 999999999),
-      expression: 'custom',
-      angle: 'custom',
-      lighting: 'custom',
-      scene: 'custom',
+      expression: 'anchor',
+      angle: 'front',
+      lighting: 'studio_flat',
+      scene: 'master_portrait',
     }));
   } else {
     // 자동 프롬프트 모드: DB 외모 정보 기반 조합
@@ -109,10 +106,10 @@ export async function startCandidateGeneration(
       const rawAppearance = (character as unknown as Record<string, unknown>).APPEARANCE;
       const appearance: CharacterAppearance =
         typeof rawAppearance === 'string'
-          ? JSON.parse(rawAppearance) as CharacterAppearance
-          : rawAppearance as CharacterAppearance;
+          ? (JSON.parse(rawAppearance) as CharacterAppearance)
+          : (rawAppearance as CharacterAppearance);
 
-      prompts = generateCandidatePrompts(appearance, count);
+      prompts = generateAnchorCandidatePrompts(appearance, count);
     } finally {
       await conn.close();
     }
@@ -120,12 +117,21 @@ export async function startCandidateGeneration(
 
   const jobId = generateJobId('cand');
   const job: GenerationJob = {
-    jobId, charId, status: 'generating',
-    total: prompts.length, completed: 0, candidates: [],
+    jobId,
+    charId,
+    status: 'generating',
+    total: prompts.length,
+    completed: 0,
+    candidates: [],
   };
 
   activeJobs.set(jobId, job);
-  logger.info('후보 생성 작업 시작', { jobId, charId, count: prompts.length, custom: !!customPrompt });
+  logger.info('후보 생성 작업 시작', {
+    jobId,
+    charId,
+    count: prompts.length,
+    custom: !!customPrompt,
+  });
 
   processBatch(job, prompts).catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
@@ -158,24 +164,26 @@ export function stopCandidateGeneration(jobId: string): boolean {
 async function processOneCandidate(
   job: GenerationJob,
   promptItem: CandidatePrompt,
-  outDir: string
+  outDir: string,
 ): Promise<void> {
-  const workflow = buildWorkflow({ prompt: promptItem.prompt, seed: promptItem.seed });
+  // Build and submit Kontext workflow
+  const workflow = buildKontextAnchorWorkflow({
+    prompt: promptItem.prompt,
+    seed: promptItem.seed,
+    filenamePrefix: `${job.charId}_${promptItem.seed}`,
+  });
+  await comfyuiClient.connect();
   const promptId = await comfyuiClient.submitWorkflow(workflow);
-  const images = await comfyuiClient.waitForResult(promptId);
-
+  const images = await comfyuiClient.waitForResult(promptId, 120_000);
   if (images.length === 0) {
-    logger.warn('이미지 생성 결과 없음', { jobId: job.jobId, seed: promptItem.seed });
-    return;
+    throw new Error('ComfyUI에서 이미지 결과를 받지 못했습니다');
   }
-
+  // Download image from ComfyUI output
+  const imageUrl = `${config.comfyui.httpUrl}/view?filename=${images[0].filename}&subfolder=${images[0].subfolder ?? ''}&type=${images[0].type ?? 'output'}`;
+  const imageResponse = await fetch(imageUrl);
+  const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
   const filename = `${job.charId}_${promptItem.seed}.png`;
   const imagePath = path.join(outDir, filename);
-
-  // ComfyUI output에서 이미지 다운로드
-  const imageUrl = getComfyOutputUrl(images[0].filename, images[0].subfolder);
-  const response = await fetch(imageUrl);
-  const imageBuffer = Buffer.from(await response.arrayBuffer());
   await writeFileBuffer(imagePath, imageBuffer);
 
   // 썸네일 생성
@@ -184,7 +192,9 @@ async function processOneCandidate(
 
   // 품질 평가 (실패 시 건너뜀)
   const candidate: CandidateResult = {
-    imagePath, prompt: promptItem.prompt, seed: promptItem.seed,
+    imagePath,
+    prompt: promptItem.prompt,
+    seed: promptItem.seed,
   };
   job.status = 'scoring';
 
@@ -203,8 +213,11 @@ async function processOneCandidate(
   const conn = await getConnection();
   try {
     const candidateId = await insertCandidate(conn, {
-      charId: job.charId, jobId: job.jobId, imagePath,
-      promptText: promptItem.prompt, seed: promptItem.seed,
+      charId: job.charId,
+      jobId: job.jobId,
+      imagePath,
+      promptText: promptItem.prompt,
+      seed: promptItem.seed,
       qualityScore: candidate.qualityScore ?? null,
       grade: candidate.grade ?? null,
     });
@@ -217,20 +230,22 @@ async function processOneCandidate(
   job.completed += 1;
   job.status = 'generating';
   logger.debug('후보 생성 완료', {
-    jobId: job.jobId, progress: `${job.completed}/${job.total}`, score: candidate.qualityScore,
+    jobId: job.jobId,
+    progress: `${job.completed}/${job.total}`,
+    score: candidate.qualityScore,
   });
 }
 
 async function processBatch(job: GenerationJob, prompts: CandidatePrompt[]): Promise<void> {
   const outDir = path.join(EXPORTS_BASE, job.charId, job.jobId);
   await ensureDir(outDir);
-  await comfyuiClient.connect();
-
   for (const promptItem of prompts) {
     if (job.shouldStop) {
       job.status = 'stopped';
       logger.info('후보 생성 중단', {
-        jobId: job.jobId, completed: job.completed, total: job.total,
+        jobId: job.jobId,
+        completed: job.completed,
+        total: job.total,
       });
       break;
     }
@@ -239,14 +254,22 @@ async function processBatch(job: GenerationJob, prompts: CandidatePrompt[]): Pro
       await processOneCandidate(job, promptItem, outDir);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
+      job.lastError = msg;
       logger.error('개별 후보 생성 실패', { jobId: job.jobId, error: msg });
+      // 첫 실패 후 즉시 중단 (같은 오류가 반복되는 것을 방지)
+      if (job.completed === 0) {
+        job.status = 'failed';
+        return;
+      }
     }
   }
 
   if (!job.shouldStop) {
     job.status = 'completed';
     logger.info('후보 배치 생성 완료', {
-      jobId: job.jobId, total: job.total, completed: job.completed,
+      jobId: job.jobId,
+      total: job.total,
+      completed: job.completed,
     });
   }
 }
