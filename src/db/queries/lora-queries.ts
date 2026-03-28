@@ -138,6 +138,13 @@ export const LIST_CHECKPOINTS = `
    ORDER BY step_number
 `;
 
+export const GET_CHECKPOINT = `
+  SELECT checkpoint_id, job_id, step_number, file_name,
+         is_selected, created_at
+    FROM lora_checkpoints
+   WHERE checkpoint_id = :checkpointId
+`;
+
 export const SELECT_CHECKPOINT = `
   UPDATE lora_checkpoints
      SET is_selected = CASE
@@ -145,6 +152,12 @@ export const SELECT_CHECKPOINT = `
            ELSE 0
          END
    WHERE job_id = :jobId
+`;
+
+export const UPDATE_CHARACTER_LORA = `
+  UPDATE characters
+     SET lora_path = :loraPath
+   WHERE char_id = :charId
 `;
 
 // ─── lora_test_images SQL ──────────────────────────────
