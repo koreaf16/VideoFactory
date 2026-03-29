@@ -245,6 +245,36 @@
       actions.appendChild(viewBtn);
     }
 
+    if (c.ANCHOR_PATH) {
+      var derivBtn = document.createElement('button');
+      derivBtn.className = 'flex-1 bg-orange-500/20 hover:bg-orange-500/40 text-orange-400 text-xs py-2 rounded-lg transition font-semibold';
+      derivBtn.textContent = '파생 재생성';
+      derivBtn.addEventListener('click', async function() {
+        derivBtn.disabled = true;
+        derivBtn.textContent = '시작 중...';
+        try {
+          var res = await fetch('/api/characters/derivatives/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ charId: c.CHAR_ID, anchorPath: c.ANCHOR_PATH, basePrompt: '' }),
+          });
+          var json = await res.json();
+          if (json.success && json.jobId) {
+            window.location.href = '/characters/derivatives/' + encodeURIComponent(json.jobId);
+          } else {
+            alert('실패: ' + (json.error || ''));
+            derivBtn.disabled = false;
+            derivBtn.textContent = '파생 재생성';
+          }
+        } catch (err) {
+          alert('요청 실패: ' + err.message);
+          derivBtn.disabled = false;
+          derivBtn.textContent = '파생 재생성';
+        }
+      });
+      actions.appendChild(derivBtn);
+    }
+
     if (c.REF_IMAGE_COUNT > 0) {
       var galleryBtn = document.createElement('a');
       galleryBtn.href = '/characters/' + encodeURIComponent(c.CHAR_ID) + '/gallery';

@@ -20,6 +20,7 @@ import {
   findCharacterById,
   listCharacters,
   countRefImagesByChar,
+  getAnchorPath,
 } from '../../db/queries/character-queries';
 import { listCandidatesByJob, getLatestJobByChar } from '../../db/queries/candidate-queries';
 import {
@@ -118,7 +119,13 @@ router.get(
         rows.map(async (r) => {
           const latestJobId = await getLatestJobByChar(conn, r.CHAR_ID as string);
           const refImageCount = await countRefImagesByChar(conn, r.CHAR_ID as string);
-          return { ...r, LATEST_JOB_ID: latestJobId, REF_IMAGE_COUNT: refImageCount };
+          const anchorPath = await getAnchorPath(conn, r.CHAR_ID as string);
+          return {
+            ...r,
+            LATEST_JOB_ID: latestJobId,
+            REF_IMAGE_COUNT: refImageCount,
+            ANCHOR_PATH: anchorPath,
+          };
         }),
       );
       res.json({ success: true, data: withJobs });
