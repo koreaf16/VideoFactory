@@ -2,7 +2,7 @@
 
 > 이 문서는 프로젝트의 **현재 상태**를 반영합니다.
 > 구조 변경 시 **반드시** 이 문서를 업데이트하세요.
-> 마지막 업데이트: 2026-03-28
+> 마지막 업데이트: 2026-03-30
 
 ---
 
@@ -140,6 +140,7 @@ C:\VideoFactory\
 │   │   │   ├── episode-queries.ts     에피소드 CRUD
 │   │   │   ├── comment-queries.ts     댓글 CRUD
 │   │   │   ├── reference-queries.ts   레퍼런스 CRUD
+│   │   │   ├── location-queries.ts    장소 + 장소 후보 CRUD
 │   │   │   ├── lora-queries.ts        LoRA 5개 테이블 SQL (datasets, images, jobs, checkpoints, evals)
 │   │   │   ├── vector-search.ts       Vector 유사도 검색
 │   │   │   ├── graph-relations.ts     Graph 관계 쿼리 (GRAPH_TABLE)
@@ -177,6 +178,19 @@ C:\VideoFactory\
 │   │       ├── character-tags.ts      캐릭터별 고정 외모 태그
 │   │       ├── time-weather.ts        시간/날씨 프롬프트 프리셋
 │   │       └── negative-prompts.ts    네거티브 프롬프트
+│   │
+│   ├── locations/                      🏠 장소 관리 + LoRA 파이프라인
+│   │   ├── routes/
+│   │   │   ├── location-routes.ts     /api/locations/* CRUD + 마운트 허브
+│   │   │   ├── location-candidate-routes.ts  후보 생성/SSE/중단
+│   │   │   ├── location-derivative-routes.ts 앵글 변형 SSE/갤러리/재생성
+│   │   │   └── location-lora-routes.ts      데이터셋/캡셔닝/학습
+│   │   ├── services/
+│   │   │   ├── location-candidate-generator.ts FLUX txt2img 배경 후보 배치 생성
+│   │   │   ├── location-derivative-generator.ts Kontext 앵글 변형 12종 생성
+│   │   │   └── location-presets.ts    앵글 변형 프리셋 (정면/좌/우/역방향/클로즈업 등)
+│   │   └── types/
+│   │       └── location.types.ts      장소 도메인 인터페이스
 │   │
 │   ├── episodes/                      📝 대본 생성 파이프라인
 │   │   ├── README.md
@@ -329,6 +343,11 @@ C:\VideoFactory\
 │       │   │   ├── lora-dataset.ejs   데이터셋 + 캡션 관리 UI
 │       │   │   ├── lora-training.ejs  학습 모니터 + 체크포인트 평가 UI
 │       │   │   └── manage.html        캐릭터 관리
+│       │   ├── locations/
+│       │   │   ├── manage.ejs         장소 목록/등록
+│       │   │   ├── candidates.ejs     배경 후보 선택
+│       │   │   ├── derivatives.ejs    앵글 변형 검수
+│       │   │   └── gallery.ejs        장소 갤러리 + LoRA 시작
 │       │   ├── episodes/
 │       │   │   ├── script-editor.html 대본 에디터
 │       │   │   ├── scene-preview.html 씬 미리보기
