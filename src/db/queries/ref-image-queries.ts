@@ -99,14 +99,15 @@ export async function listAllRefImagesByChar(
 
 export async function batchApproveRefImages(
   conn: oracledb.Connection,
+  charId: string,
   refIds: number[],
   approved: boolean,
 ): Promise<number> {
   if (refIds.length === 0) return 0;
   const approvedNum = approved ? 1 : 0;
   const result = await conn.executeMany(
-    'UPDATE char_ref_images SET approved = :approved WHERE ref_id = :refId',
-    refIds.map((id) => ({ refId: id, approved: approvedNum })),
+    'UPDATE char_ref_images SET approved = :approved WHERE ref_id = :refId AND char_id = :charId',
+    refIds.map((id) => ({ refId: id, approved: approvedNum, charId })),
     { autoCommit: true },
   );
   const updated = result.rowsAffected ?? 0;

@@ -75,7 +75,7 @@ router.patch(
 
     const conn = await getConnection();
     try {
-      const updated = await batchApproveRefImages(conn, parsed.refIds, parsed.approved);
+      const updated = await batchApproveRefImages(conn, charId, parsed.refIds, parsed.approved);
       res.json({ success: true, updated, charId });
     } finally {
       await conn.close();
