@@ -1,0 +1,221 @@
+<div>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">장소 관리</h2>
+    <button id="btn-add" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      새 장소 등록
+    </button>
+  </div>
+
+  <!-- 로딩 -->
+  <div id="loading" class="text-center py-20 text-[#ccc3d8]">불러오는 중...</div>
+
+  <!-- 카드 그리드 -->
+  <div id="loc-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 hidden"></div>
+
+  <!-- 빈 상태 -->
+  <div id="empty-state" class="text-center py-20 text-[#ccc3d8] hidden">등록된 장소가 없습니다.</div>
+
+  <!-- 등록 모달 -->
+  <div id="add-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden">
+    <div class="bg-[#2a2a2c] rounded-xl p-6 w-[28rem] shadow-xl max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-semibold text-[#e5e1e4] mb-4">새 장소 등록</h3>
+
+      <div class="mb-3">
+        <label class="block text-sm text-[#ccc3d8] mb-1">장소 ID</label>
+        <input id="modal-id" type="text" placeholder="예: classroom_3b" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+      </div>
+      <div class="mb-3">
+        <label class="block text-sm text-[#ccc3d8] mb-1">장소 이름</label>
+        <input id="modal-name" type="text" placeholder="예: 3학년 B반 교실" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+      </div>
+      <div class="mb-3">
+        <label class="block text-sm text-[#ccc3d8] mb-1">영문 이름 (선택)</label>
+        <input id="modal-name-en" type="text" placeholder="예: Classroom 3-B" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+      </div>
+      <div class="mb-3">
+        <label class="block text-sm text-[#ccc3d8] mb-1">장소 유형</label>
+        <select id="modal-type" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+          <option value="main">핵심 장소 (LoRA 학습)</option>
+          <option value="sub">보조 장소 (배경 고정)</option>
+          <option value="background">배경 (프롬프트만)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="block text-sm text-[#ccc3d8] mb-1">기본 프롬프트</label>
+        <textarea id="modal-prompt" rows="4" placeholder="empty room, no people, ..." class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] placeholder-[#958da1] focus:outline-none focus:border-[#7c3aed] resize-none"></textarea>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm text-[#ccc3d8] mb-1">설명 (선택)</label>
+        <textarea id="modal-desc" rows="2" placeholder="장소에 대한 설명..." class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] placeholder-[#958da1] focus:outline-none focus:border-[#7c3aed] resize-none"></textarea>
+      </div>
+
+      <div class="flex gap-3 justify-end">
+        <button id="modal-cancel" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition">취소</button>
+        <button id="modal-submit" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-4 py-2 rounded-lg transition">등록</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var grid = document.getElementById('loc-grid');
+  var loading = document.getElementById('loading');
+  var emptyState = document.getElementById('empty-state');
+  var modal = document.getElementById('add-modal');
+  var locations = [];
+
+  var typeMap = { main: '핵심 (LoRA)', sub: '보조', background: '배경', anchor_set: '확정' };
+  var typeColorMap = {
+    main: 'bg-purple-500/20 text-purple-400',
+    anchor_set: 'bg-green-500/20 text-green-400',
+    sub: 'bg-blue-500/20 text-blue-400',
+    background: 'bg-gray-500/20 text-gray-400',
+  };
+
+  function createHomeSvg() {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'w-16 h-16 text-[#ccc3d8]/20');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    var p = document.createElementNS(ns, 'path');
+    p.setAttribute('stroke-linecap', 'round');
+    p.setAttribute('stroke-linejoin', 'round');
+    p.setAttribute('stroke-width', '1');
+    p.setAttribute('d', 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z');
+    svg.appendChild(p);
+    return svg;
+  }
+
+  function createCard(loc) {
+    var card = document.createElement('div');
+    card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden group';
+
+    var thumbArea = document.createElement('div');
+    thumbArea.className = 'aspect-[4/3] bg-[#353437] flex items-center justify-center';
+    thumbArea.appendChild(createHomeSvg());
+    card.appendChild(thumbArea);
+
+    var body = document.createElement('div');
+    body.className = 'p-4';
+
+    var header = document.createElement('div');
+    header.className = 'flex items-center justify-between mb-2';
+    var nameEl = document.createElement('h3');
+    nameEl.className = 'text-base font-semibold text-[#e5e1e4]';
+    nameEl.textContent = loc.NAME;
+    var idEl = document.createElement('span');
+    idEl.className = 'text-[10px] text-[#958da1] font-mono';
+    idEl.textContent = loc.LOCATION_ID;
+    header.appendChild(nameEl);
+    header.appendChild(idEl);
+    body.appendChild(header);
+
+    var locType = loc.LOCATION_TYPE || 'main';
+    var typeCls = typeColorMap[locType] || 'bg-purple-500/20 text-purple-400';
+    var badge = document.createElement('span');
+    badge.className = 'inline-block text-[10px] ' + typeCls + ' px-2 py-0.5 rounded-full mb-3';
+    badge.textContent = typeMap[locType] || locType;
+    body.appendChild(badge);
+
+    if (loc.PROMPT_BASE) {
+      var promptEl = document.createElement('p');
+      promptEl.className = 'text-xs text-[#958da1] mb-3 line-clamp-2';
+      promptEl.textContent = loc.PROMPT_BASE;
+      body.appendChild(promptEl);
+    }
+
+    var actions = document.createElement('div');
+    actions.className = 'flex gap-2 mt-4';
+
+    var genBtn = document.createElement('button');
+    genBtn.className = 'flex-1 bg-[#7c3aed]/20 hover:bg-[#7c3aed]/40 text-[#d2bbff] text-xs py-2 rounded-lg transition font-semibold';
+    genBtn.textContent = '후보 생성';
+    genBtn.addEventListener('click', function() {
+      alert('Phase B에서 구현 예정');
+    });
+    actions.appendChild(genBtn);
+
+    if (loc.LATEST_JOB_ID) {
+      var viewBtn = document.createElement('a');
+      viewBtn.href = '/locations/candidates/' + encodeURIComponent(loc.LATEST_JOB_ID);
+      viewBtn.className = 'flex-1 bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-xs py-2 rounded-lg transition text-center';
+      viewBtn.textContent = '기존 후보 보기';
+      actions.appendChild(viewBtn);
+    }
+
+    if (loc.REF_IMAGE_COUNT > 0) {
+      var galleryBtn = document.createElement('a');
+      galleryBtn.href = '/locations/' + encodeURIComponent(loc.LOCATION_ID) + '/gallery';
+      galleryBtn.className = 'flex-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 text-xs py-2 rounded-lg transition text-center font-semibold';
+      galleryBtn.textContent = '갤러리 (' + loc.REF_IMAGE_COUNT + ')';
+      actions.appendChild(galleryBtn);
+    }
+
+    body.appendChild(actions);
+    card.appendChild(body);
+    return card;
+  }
+
+  async function loadLocations() {
+    try {
+      var res = await fetch('/api/locations/');
+      var json = await res.json();
+      locations = json.data || [];
+      loading.classList.add('hidden');
+      if (locations.length === 0) { emptyState.classList.remove('hidden'); return; }
+      grid.classList.remove('hidden');
+      grid.textContent = '';
+      locations.forEach(function(loc) { grid.appendChild(createCard(loc)); });
+    } catch (err) {
+      loading.textContent = '장소 목록을 불러오지 못했습니다.';
+    }
+  }
+
+  // 모달
+  document.getElementById('btn-add').addEventListener('click', function() { modal.classList.remove('hidden'); });
+  document.getElementById('modal-cancel').addEventListener('click', function() { modal.classList.add('hidden'); });
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.classList.add('hidden'); });
+
+  document.getElementById('modal-submit').addEventListener('click', async function() {
+    var locationId = document.getElementById('modal-id').value.trim();
+    var name = document.getElementById('modal-name').value.trim();
+    if (!locationId || !name) { alert('장소 ID와 이름은 필수입니다.'); return; }
+
+    var btn = document.getElementById('modal-submit');
+    btn.disabled = true; btn.textContent = '등록 중...';
+
+    try {
+      var res = await fetch('/api/locations/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          locationId: locationId,
+          name: name,
+          nameEn: document.getElementById('modal-name-en').value.trim() || null,
+          locationType: document.getElementById('modal-type').value,
+          promptBase: document.getElementById('modal-prompt').value.trim() || null,
+          description: document.getElementById('modal-desc').value.trim() || null,
+        }),
+      });
+      var json = await res.json();
+      if (json.success) {
+        modal.classList.add('hidden');
+        loadLocations();
+      } else {
+        alert('등록 실패: ' + (json.error || '알 수 없는 오류'));
+      }
+    } catch (err) {
+      alert('요청 실패: ' + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = '등록';
+    }
+  });
+
+  loadLocations();
+})();
+</script>
