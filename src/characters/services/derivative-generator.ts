@@ -126,6 +126,10 @@ export async function regenerateSingleDerivative(
   const preset = DERIVATIVE_PRESETS.find((p) => p.label === label);
   if (!preset) throw new Error(`프리셋을 찾을 수 없습니다: ${label}`);
 
+  if (job.status !== 'completed' && job.status !== 'stopped') {
+    throw new Error('생성이 완료된 후에 재생성할 수 있습니다');
+  }
+
   const existingIdx = job.results.findIndex((r) => r.label === label);
   const existing = existingIdx >= 0 ? job.results[existingIdx] : undefined;
 

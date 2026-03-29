@@ -34,7 +34,7 @@ import { filterAndDeleteDissimilar } from './derivative-filter';
 export async function generateOneImage(
   job: DerivativeJob,
   preset: DerivativePreset,
-  basePrompt: string,
+  _basePrompt: string,
   outDir: string,
   emitProgress: (job: DerivativeJob) => void,
 ): Promise<DerivativeResult | null> {

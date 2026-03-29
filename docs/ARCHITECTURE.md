@@ -151,14 +151,20 @@ C:\VideoFactory\
 │   │   ├── README.md
 │   │   ├── routes/
 │   │   │   ├── character-routes.ts    /api/characters/* 라우트
-│   │   │   └── lora-routes.ts         /api/lora/* 라우트 (12 엔드포인트)
+│   │   │   ├── derivative-routes.ts   /api/characters/derivatives/* 라우트
+│   │   │   ├── lora-routes.ts         /api/lora/* 라우트 (12 엔드포인트)
+│   │   │   └── lora-eval-routes.ts    /api/lora/eval/* 체크포인트 평가 라우트
 │   │   ├── services/
 │   │   │   ├── candidate-generator.ts 후보 이미지 배치 생성 (Kontext)
 │   │   │   ├── prompt-builder.ts      프롬프트 3계층 조합
 │   │   │   ├── quality-scorer.ts      품질 자동 스코어링
 │   │   │   ├── anchor-selector.ts     앵커 이미지 확정 처리
+│   │   │   ├── candidate-processor.ts  후보 이미지 개별 처리 (생성+평가+DB)
 │   │   │   ├── derivative-generator.ts Kontext 편집 기반 파생
+│   │   │   ├── derivative-image.ts    파생 이미지 생성 내부 헬퍼 (generateOneImage, saveDerivativeToDb, processDerivativeLoop)
 │   │   │   ├── derivative-presets.ts  파생 프리셋 (포즈/표정/앵글)
+│   │   │   ├── derivative-filter.ts   얼굴 유사도 필터 + 비유사 삭제
+│   │   │   ├── appearance-extractor.ts 프롬프트에서 외모 정보 추출
 │   │   │   ├── reference-manager.ts   레퍼런스 세트 관리 + DB 등록
 │   │   │   ├── lora-dataset.ts        LoRA 데이터셋 생성 + Florence-2 캡셔닝
 │   │   │   └── lora-training.ts       LoRA 학습 실행 + 추론 테스트
@@ -516,6 +522,11 @@ Node.js → ComfyUI: WebSocket (:8188)
 | prompt_references | Rel+Vec | prompt_text, quality_score, embedding(Vector) |
 | voice_references | Rel+Vec | char_id, emotion_tag, tts_config(JSON), embedding(Vector) |
 | external_references | Rel+Vec | type, source_url, license, embedding(Vector) |
+| lora_datasets | Rel | dataset_id, char_id, trigger_word, status, image_count |
+| lora_dataset_images | Rel+BLOB | dataset_id, source_type, pose_tag, caption_auto, caption_edited |
+| lora_training_jobs | Rel+JSON | dataset_id, char_id, status, config(JSON), current_step, total_steps |
+| lora_checkpoints | Rel | job_id, step_number, file_name, is_selected |
+| lora_test_images | Rel+BLOB | checkpoint_id, prompt_text, seed, lora_strength |
 | lora_training_log | Rel | char_id, steps, rank, loss, model_path |
 | wall_break_log | Rel | ep_id, level, description |
 | npcs | Rel+JSON | npc_id, name, role, importance, profile(JSON), mood(JSON), location |
@@ -656,4 +667,5 @@ POST   /api/npc/interact          NPC 간 상호작용 생성
 | 2026-03-28 | ComfyUI workflows/ 모듈 신설 | kontext, lora, caption 워크플로우 분리 |
 | 2026-03-28 | LoRA REST API (12 엔드포인트) | lora-routes.ts, lora-queries.ts 추가 |
 | 2026-03-28 | LoRA 웹 UI 추가 | 데이터셋 관리 + 학습 모니터 페이지 |
+| 2026-03-29 | Kontext 워크플로우 버그 수정 | 앵커 steps 24로 증가, 편집 ReferenceLatent+KSampler(denoise:1.0) 방식 전환, 프롬프트 자연어 변환 |
 | | 다음 변경 시 여기에 추가 | |
