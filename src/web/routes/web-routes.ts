@@ -47,6 +47,12 @@ router.get('/characters/lora-training', (_req: Request, res: Response) => {
   res.render('characters/lora-training', { title: 'LoRA 학습' });
 });
 
+// ─── 장소 관리 ──────────────────────────────────────────────
+
+router.get('/locations', (_req: Request, res: Response) => {
+  res.render('locations/manage', { title: '장소 관리' });
+});
+
 // ─── 에피소드 관리 ──────────────────────────────────────────
 
 router.get('/episodes', (_req: Request, res: Response) => {
