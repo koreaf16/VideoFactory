@@ -166,6 +166,6 @@ medium shot from behind"
 ## 현재 구현 상태
 
 - [x] Phase A: 기반 인프라
-- [ ] Phase B: 배경 후보 생성
-- [ ] Phase C: 앵글 변형 + 갤러리
-- [ ] Phase D: 캡셔닝 + LoRA 학습
+- [x] Phase B: 배경 후보 생성
+- [x] Phase C: 앵글 변형 + 갤러리
+- [x] Phase D: 캡셔닝 + LoRA 학습
