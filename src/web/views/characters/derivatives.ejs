@@ -52,11 +52,13 @@
 
     <div id="step-log" class="mt-4 max-h-40 overflow-y-auto bg-[#1b1b1d] rounded-lg p-3 text-xs font-mono text-[#ccc3d8] space-y-1"></div>
 
-    <!-- 중지 버튼 -->
+    <!-- 액션 버튼 -->
     <div id="action-buttons" class="mt-4 flex gap-3">
       <button id="stop-btn" class="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-lg transition">
         중지
       </button>
+      <a id="btn-gallery" href="#" class="bg-green-500/20 hover:bg-green-500/40 text-green-400 text-sm font-semibold px-4 py-2 rounded-lg transition hidden">갤러리 보기</a>
+      <a id="btn-lora" href="/characters/lora-dataset" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-4 py-2 rounded-lg transition hidden">LoRA 학습 시작</a>
     </div>
   </div>
 
@@ -111,6 +113,8 @@
     var card = document.createElement('div');
     card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden cursor-pointer group hover:ring-2 hover:ring-[#7c3aed] transition';
     card.dataset.label = r.label;
+    card.dataset.imagePath = r.imagePath || '';
+    card.dataset.prompt = r.prompt || '';
 
     var imgWrap = document.createElement('div');
     imgWrap.className = 'aspect-[3/4] bg-[#353437] flex items-center justify-center';
@@ -140,11 +144,12 @@
     card.appendChild(info);
 
     card.addEventListener('click', function() {
-      if (r.imagePath) {
-        currentModalLabel = r.label;
-        document.getElementById('img-modal-src').src = pathToUrl(r.imagePath);
-        document.getElementById('img-modal-label').textContent = r.label;
-        document.getElementById('img-modal-prompt').textContent = r.prompt || '';
+      var imgPath = card.dataset.imagePath;
+      if (imgPath) {
+        currentModalLabel = card.dataset.label;
+        document.getElementById('img-modal-src').src = pathToUrl(imgPath);
+        document.getElementById('img-modal-label').textContent = card.dataset.label;
+        document.getElementById('img-modal-prompt').textContent = card.dataset.prompt || '';
         document.getElementById('img-modal-modify').value = '';
         document.getElementById('img-modal').classList.remove('hidden');
       }
@@ -189,6 +194,12 @@
       addLog('전체 파생 이미지 생성 완료!');
       stopBtn.disabled = true;
       stopBtn.className = 'bg-gray-600 text-white text-sm px-4 py-2 rounded-lg cursor-not-allowed opacity-50';
+      if (data.charId) {
+        var galleryBtn = document.getElementById('btn-gallery');
+        galleryBtn.href = '/characters/' + encodeURIComponent(data.charId) + '/gallery';
+        galleryBtn.classList.remove('hidden');
+        document.getElementById('btn-lora').classList.remove('hidden');
+      }
     } else if (data.status === 'stopped') {
       document.getElementById('status-icon').className = 'w-10 h-10 rounded-full bg-yellow-900/50 flex items-center justify-center';
       document.getElementById('spinner-svg').className = '';
@@ -288,6 +299,8 @@
       var ov = document.getElementById(overlayId);
       if (ov) ov.remove();
       if (data.success && data.result && card) {
+        card.dataset.imagePath = data.result.imagePath;
+        card.dataset.prompt = data.result.prompt || '';
         var img = card.querySelector('img');
         if (img) {
           img.src = thumbUrl(data.result.imagePath) + '?t=' + Date.now();

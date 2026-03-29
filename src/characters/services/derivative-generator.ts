@@ -38,6 +38,7 @@ derivativeEvents.setMaxListeners(50);
 function emitProgress(job: DerivativeJob): void {
   derivativeEvents.emit(`job:${job.jobId}`, {
     jobId: job.jobId,
+    charId: job.charId,
     status: job.status,
     total: job.total,
     completed: job.completed,
@@ -165,7 +166,7 @@ export async function regenerateSingleDerivative(
   const outDir = path.join(EXPORTS_BASE, job.charId, job.jobId);
   await ensureDir(outDir);
 
-  const newResult = await generateOneImage(job, combinedPreset, '', outDir, emitProgress);
+  const newResult = await generateOneImage(job, combinedPreset, '', outDir, emitProgress, true);
   if (!newResult) throw new Error('이미지 생성 실패');
 
   if (existingIdx >= 0) {
