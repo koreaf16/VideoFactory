@@ -11,34 +11,96 @@
  * @author AI Video Factory
  */
 
+import path from 'path';
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { asyncHandler } from '../../common/middleware/async-handler';
 import { getConnection } from '../../db/connection';
-import {
-  findCharacterById,
-  listCharacters,
-  updateCharacterStatus,
-} from '../../db/queries/character-queries';
-import {
-  toggleCandidateLike,
-  setAnchorCandidate,
-  listCandidatesByJob,
-  getLatestJobByChar,
-} from '../../db/queries/candidate-queries';
+import { findCharacterById, listCharacters } from '../../db/queries/character-queries';
+import { listCandidatesByJob, getLatestJobByChar } from '../../db/queries/candidate-queries';
 import {
   startCandidateGeneration,
   getJob,
   getJobCandidates,
 } from '../services/candidate-generator';
-import { startDerivativeGeneration } from '../services/derivative-generator';
 import { logger } from '../../common/logger';
-import type { CandidateGenerateRequest } from '../types/character.types';
+import { ensureDir } from '../../common/utils/file-utils';
+import type { AnchorMode } from '../types/character.types';
+import type { PulidModeOptions } from '../services/candidate-processor';
 import derivativeRoutes from './derivative-routes';
+import galleryRoutes from './gallery-routes';
+import candidateRoutes from './candidate-routes';
+
+// ─── Multer 설정 (레퍼런스 이미지 업로드) ──────────────────
+
+const UPLOAD_DIR = path.resolve('uploads/references');
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: async (_req, _file, cb) => {
+      await ensureDir(UPLOAD_DIR);
+      cb(null, UPLOAD_DIR);
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.png';
+      cb(null, `ref_${Date.now()}${ext}`);
+    },
+  }),
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['.png', '.jpg', '.jpeg', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, allowed.includes(ext));
+  },
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
+
+// ─── 헬퍼 함수 ───────────────────────────────────────────────
+
+async function handleGetCandidatesFromDb(jobId: string, res: Response): Promise<void> {
+  const conn = await getConnection();
+  try {
+    const rows = await listCandidatesByJob(conn, jobId);
+    if (rows.length === 0) {
+      res.status(404).json({ success: false, error: '작업을 찾을 수 없습니다' });
+      return;
+    }
+    const charId = rows[0].CHAR_ID;
+    const candidates = rows.map((r) => ({
+      candidateId: r.CANDIDATE_ID,
+      imagePath: r.IMAGE_PATH,
+      prompt: r.PROMPT_TEXT ?? '',
+      seed: r.SEED ?? 0,
+      qualityScore: r.QUALITY_SCORE ?? undefined,
+      grade: r.GRADE ?? undefined,
+      liked: r.LIKED === 1,
+      isAnchor: r.IS_ANCHOR === 1,
+      jobId: r.JOB_ID,
+    }));
+    res.json({
+      success: true,
+      data: {
+        jobId,
+        charId,
+        status: 'completed',
+        total: rows.length,
+        completed: rows.length,
+        candidates,
+      },
+    });
+  } finally {
+    await conn.close();
+  }
+}
 
 const router = Router();
 
 // 파생/SSE/중단 라우트를 합체
 router.use('/', derivativeRoutes);
+
+// 갤러리 API 라우트
+router.use('/', galleryRoutes);
+
+// 후보 이미지 좋아요/앵커 라우트
+router.use('/', candidateRoutes);
 
 // ─── 캐릭터 목록/상세 ──────────────────────────────────────
 
@@ -83,16 +145,18 @@ router.get(
 
 router.post(
   '/generate-candidates',
+  upload.single('referenceImage'),
   asyncHandler(async (req: Request, res: Response) => {
-    const body = req.body as CandidateGenerateRequest;
-    if (!body.charId) {
+    const body = req.body as Record<string, unknown>;
+    const charId = body.charId as string | undefined;
+    if (!charId) {
       res.status(400).json({ success: false, error: 'charId는 필수입니다' });
       return;
     }
 
     const conn = await getConnection();
     try {
-      const exists = await findCharacterById(conn, body.charId);
+      const exists = await findCharacterById(conn, charId);
       if (!exists) {
         res.status(404).json({ success: false, error: '캐릭터를 찾을 수 없습니다' });
         return;
@@ -101,15 +165,25 @@ router.post(
       await conn.close();
     }
 
-    const count = body.count ?? 10;
-    const customPrompt = (req.body as Record<string, unknown>).prompt as string | undefined;
-    const jobId = await startCandidateGeneration(body.charId, count, customPrompt);
-    logger.info('후보 생성 API 호출', {
-      charId: body.charId,
-      count,
-      jobId,
-      custom: !!customPrompt,
-    });
+    const count = Number(body.count) || 10;
+    const customPrompt = (body.prompt as string) || undefined;
+    const mode = (body.mode as AnchorMode) || 'prompt';
+
+    let pulidOpts: PulidModeOptions | undefined;
+    if (mode === 'reference') {
+      if (!req.file) {
+        res.status(400).json({ success: false, error: '레퍼런스 이미지가 필요합니다' });
+        return;
+      }
+      pulidOpts = {
+        referenceImagePath: req.file.path,
+        pulidStrength: Number(body.pulidStrength) || 0.55,
+        guidance: Number(body.guidance) || 3.5,
+      };
+    }
+
+    const jobId = await startCandidateGeneration(charId, count, customPrompt, pulidOpts);
+    logger.info('후보 생성 API 호출', { charId, count, jobId, mode, custom: !!customPrompt });
 
     res.json({ success: true, jobId, status: 'generating' });
   }),
@@ -136,39 +210,7 @@ router.get(
       return;
     }
 
-    const conn = await getConnection();
-    try {
-      const rows = await listCandidatesByJob(conn, jobId);
-      if (rows.length === 0) {
-        res.status(404).json({ success: false, error: '작업을 찾을 수 없습니다' });
-        return;
-      }
-      const charId = rows[0].CHAR_ID;
-      const candidates = rows.map((r) => ({
-        candidateId: r.CANDIDATE_ID,
-        imagePath: r.IMAGE_PATH,
-        prompt: r.PROMPT_TEXT ?? '',
-        seed: r.SEED ?? 0,
-        qualityScore: r.QUALITY_SCORE ?? undefined,
-        grade: r.GRADE ?? undefined,
-        liked: r.LIKED === 1,
-        isAnchor: r.IS_ANCHOR === 1,
-        jobId: r.JOB_ID,
-      }));
-      res.json({
-        success: true,
-        data: {
-          jobId,
-          charId,
-          status: 'completed',
-          total: rows.length,
-          completed: rows.length,
-          candidates,
-        },
-      });
-    } finally {
-      await conn.close();
-    }
+    await handleGetCandidatesFromDb(jobId, res);
   }),
 );
 
@@ -185,70 +227,8 @@ router.get(
 
     res.json({
       success: true,
-      data: {
-        jobId: job.jobId,
-        status: job.status,
-        total: job.total,
-        completed: job.completed,
-      },
+      data: { jobId: job.jobId, status: job.status, total: job.total, completed: job.completed },
     });
-  }),
-);
-
-// ─── 좋아요/앵커 ───────────────────────────────────────────
-
-router.post(
-  '/candidates/:jobId/like',
-  asyncHandler(async (req: Request, res: Response) => {
-    const { candidateId } = req.body as { candidateId: number };
-    if (!candidateId) {
-      res.status(400).json({ success: false, error: 'candidateId는 필수입니다' });
-      return;
-    }
-
-    const conn = await getConnection();
-    try {
-      const newValue = await toggleCandidateLike(conn, candidateId);
-      res.json({ success: true, liked: newValue });
-    } finally {
-      await conn.close();
-    }
-  }),
-);
-
-router.post(
-  '/candidates/:jobId/anchor',
-  asyncHandler(async (req: Request, res: Response) => {
-    const { anchorCandidateId } = req.body as { anchorCandidateId: number };
-    if (!anchorCandidateId) {
-      res.status(400).json({ success: false, error: 'anchorCandidateId는 필수입니다' });
-      return;
-    }
-
-    const conn = await getConnection();
-    try {
-      await setAnchorCandidate(conn, anchorCandidateId);
-      const candidates = await listCandidatesByJob(conn, String(req.params.jobId));
-      const anchor = candidates.find((c) => c.CANDIDATE_ID === anchorCandidateId);
-      if (anchor) {
-        await updateCharacterStatus(conn, anchor.CHAR_ID, 'anchor_set');
-      }
-
-      let derivJobId: string | null = null;
-      if (anchor) {
-        const basePrompt = anchor.PROMPT_TEXT ?? '';
-        derivJobId = startDerivativeGeneration(anchor.CHAR_ID, anchor.IMAGE_PATH, basePrompt);
-        logger.info('앵커 확정 → 파생 생성 시작', {
-          charId: anchor.CHAR_ID,
-          anchorCandidateId,
-          derivJobId,
-        });
-      }
-
-      res.json({ success: true, derivativeJobId: derivJobId });
-    } finally {
-      await conn.close();
-    }
   }),
 );
 
