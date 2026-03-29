@@ -55,7 +55,7 @@ export const UPDATE_STATUS = `
    WHERE char_id = :charId
 `;
 
-// ─── 쿼리 함수 ──────────────────────────────────────────
+// ─── 타입 ────────────────────────────────────────────────
 
 interface CharacterRow {
   CHAR_ID: string;
@@ -79,6 +79,8 @@ interface CharacterInsertData {
   mood: string | null;
   loraPath: string | null;
 }
+
+// ─── 쿼리 함수 ──────────────────────────────────────────
 
 export async function findCharacterById(
   conn: oracledb.Connection,
@@ -140,101 +142,5 @@ export async function updateCharacterAnchor(
   logger.info('캐릭터 앵커 업데이트', { charId });
 }
 
-// ─── 파생 이미지(char_ref_images) 쿼리 ─────────────────
-
-export const LIST_REF_IMAGES_BY_CHAR = `
-  SELECT ref_id, char_id, image_path, pose_tag,
-         quality_score, approved, created_at
-    FROM char_ref_images
-   WHERE char_id = :charId AND approved = 1
-   ORDER BY created_at ASC
-`;
-
-export const GET_REF_IMAGE = `
-  SELECT ref_id, char_id, image_path, pose_tag,
-         quality_score, approved, created_at
-    FROM char_ref_images
-   WHERE ref_id = :refId
-`;
-
-export const UPDATE_REF_IMAGE_PATH = `
-  UPDATE char_ref_images
-     SET image_path = :imagePath
-   WHERE ref_id = :refId
-`;
-
-export const DELETE_REF_IMAGE = `
-  DELETE FROM char_ref_images WHERE ref_id = :refId
-`;
-
-export const GET_ANCHOR_PATH = `
-  SELECT image_path
-    FROM char_candidates
-   WHERE char_id = :charId AND is_anchor = 1
-   FETCH FIRST 1 ROWS ONLY
-`;
-
-export const COUNT_REF_IMAGES_BY_CHAR = `
-  SELECT COUNT(*) AS CNT
-    FROM char_ref_images
-   WHERE char_id = :charId AND approved = 1
-`;
-
-export interface RefImageRow {
-  REF_ID: number;
-  CHAR_ID: string;
-  IMAGE_PATH: string;
-  POSE_TAG: string | null;
-  QUALITY_SCORE: number | null;
-  APPROVED: number;
-  CREATED_AT: Date;
-}
-
-export async function listRefImagesByChar(
-  conn: oracledb.Connection,
-  charId: string,
-): Promise<RefImageRow[]> {
-  const result = await conn.execute<RefImageRow>(
-    LIST_REF_IMAGES_BY_CHAR,
-    { charId },
-    { outFormat: oracledb.OUT_FORMAT_OBJECT },
-  );
-  logger.debug('파생 이미지 목록 조회', { charId, count: result.rows?.length ?? 0 });
-  return result.rows ?? [];
-}
-
-export async function getRefImage(
-  conn: oracledb.Connection,
-  refId: number,
-): Promise<RefImageRow | undefined> {
-  const result = await conn.execute<RefImageRow>(
-    GET_REF_IMAGE,
-    { refId },
-    { outFormat: oracledb.OUT_FORMAT_OBJECT },
-  );
-  return result.rows?.[0];
-}
-
-export async function getAnchorPath(
-  conn: oracledb.Connection,
-  charId: string,
-): Promise<string | null> {
-  const result = await conn.execute<{ IMAGE_PATH: string }>(
-    GET_ANCHOR_PATH,
-    { charId },
-    { outFormat: oracledb.OUT_FORMAT_OBJECT },
-  );
-  return result.rows?.[0]?.IMAGE_PATH ?? null;
-}
-
-export async function countRefImagesByChar(
-  conn: oracledb.Connection,
-  charId: string,
-): Promise<number> {
-  const result = await conn.execute<{ CNT: number }>(
-    COUNT_REF_IMAGES_BY_CHAR,
-    { charId },
-    { outFormat: oracledb.OUT_FORMAT_OBJECT },
-  );
-  return result.rows?.[0]?.CNT ?? 0;
-}
+// ─── 파생 이미지(char_ref_images) 쿼리 재내보내기 ──────
+export * from './ref-image-queries';

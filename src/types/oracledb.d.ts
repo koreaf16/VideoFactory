@@ -25,12 +25,26 @@ declare module 'oracledb' {
     outBinds?: Record<string, unknown>;
   }
 
+  interface ExecuteManyOptions {
+    autoCommit?: boolean;
+    batchErrors?: boolean;
+  }
+
+  interface ExecuteManyResult {
+    rowsAffected?: number;
+  }
+
   interface Connection {
     execute<T = Record<string, unknown>>(
       sql: string,
       binds?: Record<string, unknown> | unknown[],
       options?: ExecuteOptions,
     ): Promise<Result<T>>;
+    executeMany(
+      sql: string,
+      binds: Record<string, unknown>[],
+      options?: ExecuteManyOptions,
+    ): Promise<ExecuteManyResult>;
     commit(): Promise<void>;
     rollback(): Promise<void>;
     close(): Promise<void>;
