@@ -8,7 +8,9 @@
 
 import { Router, Request, Response } from 'express';
 import locationCandidateRoutes from './location-candidate-routes';
+import locationDerivativeRoutes from './location-derivative-routes';
 import locationLoraRoutes from './location-lora-routes';
+import { startLocDerivativeGeneration } from '../services/location-derivative-generator';
 import { asyncHandler } from '../../common/middleware/async-handler';
 import { getConnection } from '../../db/connection';
 import {
@@ -176,7 +178,11 @@ router.post(
           { autoCommit: true },
         );
       }
-      res.json({ success: true });
+      let derivJobId: string | null = null;
+      if (anchor) {
+        derivJobId = startLocDerivativeGeneration(anchor.LOCATION_ID, anchor.IMAGE_PATH);
+      }
+      res.json({ success: true, derivativeJobId: derivJobId });
     } finally {
       await conn.close();
     }
@@ -184,6 +190,7 @@ router.post(
 );
 
 router.use('/', locationCandidateRoutes);
+router.use('/', locationDerivativeRoutes);
 router.use('/', locationLoraRoutes);
 
 export default router;
