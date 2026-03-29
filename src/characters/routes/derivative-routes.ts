@@ -16,6 +16,7 @@ import {
   getDerivativeJob,
   derivativeEvents,
   stopDerivativeGeneration,
+  regenerateSingleDerivative,
 } from '../services/derivative-generator';
 
 const router = Router();
@@ -198,6 +199,25 @@ router.post(
     }
 
     res.json({ success: true, message: '파생 생성 중단 요청 완료' });
+  }),
+);
+
+router.post(
+  '/derivatives/:jobId/regenerate',
+  asyncHandler(async (req: Request, res: Response) => {
+    const jobId = String(req.params.jobId);
+    const { label, modifyPrompt } = req.body as {
+      label: string;
+      modifyPrompt: string;
+    };
+
+    if (!label) {
+      res.status(400).json({ success: false, error: 'label은 필수입니다' });
+      return;
+    }
+
+    const result = await regenerateSingleDerivative(jobId, label, modifyPrompt ?? '');
+    res.json({ success: true, result });
   }),
 );
 
