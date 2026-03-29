@@ -7,6 +7,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import locationCandidateRoutes from './location-candidate-routes';
 import { asyncHandler } from '../../common/middleware/async-handler';
 import { getConnection } from '../../db/connection';
 import {
@@ -180,5 +181,7 @@ router.post(
     }
   }),
 );
+
+router.use('/', locationCandidateRoutes);
 
 export default router;

@@ -135,8 +135,33 @@
     var genBtn = document.createElement('button');
     genBtn.className = 'flex-1 bg-[#7c3aed]/20 hover:bg-[#7c3aed]/40 text-[#d2bbff] text-xs py-2 rounded-lg transition font-semibold';
     genBtn.textContent = '후보 생성';
-    genBtn.addEventListener('click', function() {
-      alert('Phase B에서 구현 예정');
+    genBtn.addEventListener('click', async function() {
+      genBtn.disabled = true;
+      genBtn.textContent = '생성 시작 중...';
+      try {
+        var res = await fetch('/api/locations/generate-candidates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            locationId: loc.LOCATION_ID,
+            count: 30,
+            width: 1024,
+            height: 1024,
+          }),
+        });
+        var json = await res.json();
+        if (json.success && json.jobId) {
+          window.location.href = '/locations/candidates/' + encodeURIComponent(json.jobId);
+        } else {
+          alert('후보 생성 실패: ' + (json.error || ''));
+          genBtn.disabled = false;
+          genBtn.textContent = '후보 생성';
+        }
+      } catch (err) {
+        alert('요청 실패: ' + err.message);
+        genBtn.disabled = false;
+        genBtn.textContent = '후보 생성';
+      }
     });
     actions.appendChild(genBtn);
 
