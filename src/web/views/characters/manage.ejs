@@ -202,8 +202,17 @@
     card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden group';
 
     var thumbArea = document.createElement('div');
-    thumbArea.className = 'aspect-[4/3] bg-[#353437] flex items-center justify-center';
-    thumbArea.appendChild(createPersonSvg());
+    thumbArea.className = 'aspect-[4/3] bg-[#353437] flex items-center justify-center overflow-hidden';
+    if (c.ANCHOR_PATH) {
+      var thumbImg = document.createElement('img');
+      thumbImg.src = thumbUrl(c.ANCHOR_PATH);
+      thumbImg.alt = c.NAME;
+      thumbImg.className = 'w-full h-full object-cover';
+      thumbImg.loading = 'lazy';
+      thumbArea.appendChild(thumbImg);
+    } else {
+      thumbArea.appendChild(createPersonSvg());
+    }
     card.appendChild(thumbArea);
 
     var body = document.createElement('div');
