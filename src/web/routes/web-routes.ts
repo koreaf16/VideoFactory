@@ -35,6 +35,10 @@ router.get('/characters/derivatives/:jobId', (req: Request, res: Response) => {
   res.render('characters/derivatives', { title: '파생 검수', jobId: req.params.jobId });
 });
 
+router.get('/characters/:charId/gallery', (req: Request, res: Response) => {
+  res.render('characters/gallery', { title: '파생 이미지 갤러리', charId: req.params.charId });
+});
+
 router.get('/characters/lora-dataset', (_req: Request, res: Response) => {
   res.render('characters/lora-dataset', { title: 'LoRA 데이터셋' });
 });
