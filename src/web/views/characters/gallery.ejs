@@ -5,7 +5,10 @@
       <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">파생 이미지 갤러리</h2>
       <p class="text-xs text-[#ccc3d8] mt-1">캐릭터: <span class="text-[#d2bbff]"><%= charId %></span></p>
     </div>
-    <a href="/characters" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition">목록으로</a>
+    <div class="flex gap-2 items-center">
+      <button id="btn-approve-toggle" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition hidden">선택 승인</button>
+      <a href="/characters" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition">목록으로</a>
+    </div>
   </div>
 
   <!-- 로딩 -->
@@ -55,6 +58,7 @@
 </div>
 
 <script src="/js/characters.js"></script>
+<script src="/js/approval.js"></script>
 <script>
 (function() {
   var CHAR_ID = '<%= charId %>';
@@ -63,9 +67,10 @@
 
   function createCard(img) {
     var card = document.createElement('div');
-    card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden cursor-pointer group hover:ring-2 hover:ring-[#7c3aed] transition';
+    card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden cursor-pointer group hover:ring-2 hover:ring-[#7c3aed] transition relative';
     card.dataset.refId = String(img.refId);
     card.dataset.imagePath = img.imagePath || '';
+    card.dataset.approved = img.approved ? '1' : '0';
 
     var imgWrap = document.createElement('div');
     imgWrap.className = 'aspect-[3/4] bg-[#353437] flex items-center justify-center';
@@ -78,6 +83,11 @@
       imgWrap.appendChild(imgEl);
     }
     card.appendChild(imgWrap);
+
+    var badge = document.createElement('div');
+    badge.className = 'approval-badge absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded';
+    updateBadge(badge, img.approved);
+    card.appendChild(badge);
 
     var info = document.createElement('div');
     info.className = 'p-2';
@@ -101,6 +111,16 @@
     return card;
   }
 
+  function updateBadge(badge, approved) {
+    if (approved) {
+      badge.textContent = '✓';
+      badge.style.cssText = 'background:rgba(74,222,128,0.2);color:#4ade80;';
+    } else {
+      badge.textContent = '미승인';
+      badge.style.cssText = 'background:rgba(100,100,100,0.4);color:#aaa;';
+    }
+  }
+
   async function loadGallery() {
     try {
       var res = await fetch('/api/characters/' + encodeURIComponent(CHAR_ID) + '/ref-images');
@@ -117,6 +137,7 @@
       document.getElementById('stat-count').textContent = images.length;
       document.getElementById('stats-bar').classList.remove('hidden');
       document.getElementById('bottom-actions').classList.remove('hidden');
+      document.getElementById('btn-approve-toggle').classList.remove('hidden');
 
       var grid = document.getElementById('gallery-grid');
       grid.classList.remove('hidden');
@@ -182,6 +203,34 @@
       if (ov) ov.remove();
       alert('재생성 실패: ' + err.message);
     });
+  });
+
+  // 선택 승인 토글
+  var approveActive = false;
+  document.getElementById('btn-approve-toggle').addEventListener('click', function() {
+    var grid = document.getElementById('gallery-grid');
+    if (!approveActive) {
+      approveActive = true;
+      this.textContent = '선택 종료';
+      this.className = this.className.replace('bg-[#353437] hover:bg-[#4a4455]', 'bg-[#7c3aed] hover:bg-[#6d28d9]');
+      ApprovalMode.init(grid, {
+        charId: CHAR_ID,
+        onApproved: function(refIds, approved) {
+          refIds.forEach(function(refId) {
+            var card = grid.querySelector('[data-ref-id="' + refId + '"]');
+            if (!card) return;
+            card.dataset.approved = approved ? '1' : '0';
+            var badge = card.querySelector('.approval-badge');
+            if (badge) updateBadge(badge, approved);
+          });
+        },
+      });
+    } else {
+      approveActive = false;
+      this.textContent = '선택 승인';
+      this.className = this.className.replace('bg-[#7c3aed] hover:bg-[#6d28d9]', 'bg-[#353437] hover:bg-[#4a4455]');
+      ApprovalMode.destroy();
+    }
   });
 
   loadGallery();
