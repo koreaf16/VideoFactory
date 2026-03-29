@@ -8,6 +8,7 @@
 
 import { Router, Request, Response } from 'express';
 import locationCandidateRoutes from './location-candidate-routes';
+import locationLoraRoutes from './location-lora-routes';
 import { asyncHandler } from '../../common/middleware/async-handler';
 import { getConnection } from '../../db/connection';
 import {
@@ -183,5 +184,6 @@ router.post(
 );
 
 router.use('/', locationCandidateRoutes);
+router.use('/', locationLoraRoutes);
 
 export default router;
