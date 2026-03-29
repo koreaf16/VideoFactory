@@ -19,21 +19,76 @@
 
   <!-- 후보 생성 모달 -->
   <div id="gen-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden">
-    <div class="bg-[#2a2a2c] rounded-xl p-6 w-96 shadow-xl">
+    <div class="bg-[#2a2a2c] rounded-xl p-6 w-[28rem] shadow-xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-semibold text-[#e5e1e4] mb-4">후보 이미지 생성</h3>
+
+      <!-- 캐릭터 선택 -->
       <div class="mb-4">
         <label class="block text-sm text-[#ccc3d8] mb-1">캐릭터</label>
         <select id="modal-char-select" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]"></select>
       </div>
+
+      <!-- 모드 선택 탭 -->
       <div class="mb-4">
-        <label class="block text-sm text-[#ccc3d8] mb-1">프롬프트 (직접 입력)</label>
-        <textarea id="modal-prompt" rows="4" placeholder="예: photorealistic, Korean high school girl, long dark brown hair with bangs, brown eyes, navy hoodie, selfie pose, bright smile, outdoor, golden hour..." class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] placeholder-[#958da1] focus:outline-none focus:border-[#7c3aed] resize-none"></textarea>
+        <label class="block text-sm text-[#ccc3d8] mb-2">레퍼런스 사진이 있나요?</label>
+        <div class="flex gap-2">
+          <button id="tab-mode-a" type="button" class="flex-1 py-2 text-sm rounded-lg border transition font-semibold border-[#4a4455] bg-[#353437] text-[#958da1]">
+            모드 A: 레퍼런스 기반
+          </button>
+          <button id="tab-mode-b" type="button" class="flex-1 py-2 text-sm rounded-lg border transition font-semibold border-[#7c3aed] bg-[#7c3aed]/20 text-[#d2bbff]">
+            모드 B: 프롬프트만
+          </button>
+        </div>
+      </div>
+
+      <!-- 모드 A: 레퍼런스 업로드 -->
+      <div id="mode-a-panel" class="hidden">
+        <div class="mb-3">
+          <label class="block text-sm text-[#ccc3d8] mb-1">레퍼런스 사진</label>
+          <div id="ref-drop-zone" class="border-2 border-dashed border-[#4a4455] rounded-lg p-4 text-center cursor-pointer hover:border-[#7c3aed] transition">
+            <div id="ref-placeholder">
+              <svg class="w-8 h-8 mx-auto text-[#958da1] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <p class="text-xs text-[#958da1]">클릭 또는 드래그하여 이미지 업로드</p>
+              <p class="text-[10px] text-[#958da1]/60 mt-1">정면 얼굴이 선명한 사진 권장 (PNG/JPG/WEBP)</p>
+            </div>
+            <img id="ref-preview" class="hidden max-h-32 mx-auto rounded" alt="preview">
+            <input id="ref-file-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm text-[#ccc3d8] mb-1">PuLID Strength: <span id="pulid-val" class="text-[#d2bbff]">0.55</span></label>
+          <input id="modal-pulid-strength" type="range" min="0.3" max="0.8" step="0.05" value="0.55" class="w-full accent-[#7c3aed]">
+          <div class="flex justify-between text-[10px] text-[#958da1]/60 mt-0.5">
+            <span>0.3 (분위기만)</span><span>0.55 (닮은꼴)</span><span>0.8 (복제)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 공통: 프롬프트 -->
+      <div class="mb-3">
+        <label class="block text-sm text-[#ccc3d8] mb-1">프롬프트</label>
+        <textarea id="modal-prompt" rows="4" placeholder="비워두면 캐릭터 프로필에서 자동 생성됩니다" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] placeholder-[#958da1] focus:outline-none focus:border-[#7c3aed] resize-none"></textarea>
         <p class="text-xs text-[#958da1] mt-1">비워두면 캐릭터 프로필에서 자동 생성</p>
       </div>
-      <div class="mb-6">
-        <label class="block text-sm text-[#ccc3d8] mb-1">생성 개수</label>
-        <input id="modal-count" type="number" value="10" min="1" max="50" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+
+      <!-- 공통: Guidance / 개수 -->
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="block text-sm text-[#ccc3d8] mb-1">Guidance Scale</label>
+          <input id="modal-guidance" type="number" value="3.5" min="1.0" max="10.0" step="0.5" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+        </div>
+        <div>
+          <label class="block text-sm text-[#ccc3d8] mb-1">생성 개수</label>
+          <input id="modal-count" type="number" value="30" min="1" max="50" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+        </div>
       </div>
+
+      <!-- 네거티브 ��롬프트 (접기) -->
+      <details class="mb-4">
+        <summary class="text-xs text-[#958da1] cursor-pointer hover:text-[#ccc3d8]">네거티브 프롬프트 (고급)</summary>
+        <textarea id="modal-negative" rows="2" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed] resize-none mt-2">ugly, deformed, bad anatomy, bad proportions, rough skin, blemish, acne, wide jaw, square jaw, pale lips, thick eyebrows, oily skin, low quality, blurry, disfigured</textarea>
+      </details>
+
       <div class="flex gap-3 justify-end">
         <button id="modal-cancel" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition">취소</button>
         <button id="modal-submit" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-4 py-2 rounded-lg transition">생성 시작</button>
@@ -52,11 +107,12 @@
   var charSelect = document.getElementById('modal-char-select');
   var countInput = document.getElementById('modal-count');
   var characters = [];
+  var currentMode = 'prompt';
+  var selectedFile = null;
 
   var statusMap = { protagonist: '주인공', antagonist: '적', supporting: '조연', guide: '가이드', anchor_set: '확정', candidate: '후보 선정 중' };
   var statusColorMap = { anchor_set: 'bg-green-500/20 text-green-400', candidate: 'bg-yellow-500/20 text-yellow-400' };
 
-  // 캐릭터별 프롬프트 localStorage 관리
   function savePrompt(charId, prompt) {
     if (!prompt) return;
     try { localStorage.setItem('prompt_' + charId, prompt); } catch(e) {}
@@ -65,16 +121,89 @@
     try { return localStorage.getItem('prompt_' + charId) || ''; } catch(e) { return ''; }
   }
 
-  var personSvg = '<svg class="w-16 h-16 text-[#ccc3d8]/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>';
+  function createPersonSvg() {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'w-16 h-16 text-[#ccc3d8]/20');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    var p = document.createElementNS(ns, 'path');
+    p.setAttribute('stroke-linecap', 'round');
+    p.setAttribute('stroke-linejoin', 'round');
+    p.setAttribute('stroke-width', '1');
+    p.setAttribute('d', 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z');
+    svg.appendChild(p);
+    return svg;
+  }
 
+  // ─── 모드 탭 전환 ──────────────────────────
+  var tabA = document.getElementById('tab-mode-a');
+  var tabB = document.getElementById('tab-mode-b');
+  var panelA = document.getElementById('mode-a-panel');
+  var activeCls = 'border-[#7c3aed] bg-[#7c3aed]/20 text-[#d2bbff]';
+  var inactiveCls = 'border-[#4a4455] bg-[#353437] text-[#958da1]';
+
+  function setMode(mode) {
+    currentMode = mode;
+    if (mode === 'reference') {
+      tabA.className = 'flex-1 py-2 text-sm rounded-lg border transition font-semibold ' + activeCls;
+      tabB.className = 'flex-1 py-2 text-sm rounded-lg border transition font-semibold ' + inactiveCls;
+      panelA.classList.remove('hidden');
+    } else {
+      tabB.className = 'flex-1 py-2 text-sm rounded-lg border transition font-semibold ' + activeCls;
+      tabA.className = 'flex-1 py-2 text-sm rounded-lg border transition font-semibold ' + inactiveCls;
+      panelA.classList.add('hidden');
+    }
+  }
+  tabA.addEventListener('click', function() { setMode('reference'); });
+  tabB.addEventListener('click', function() { setMode('prompt'); });
+
+  // ─── 레퍼런스 이미지 업로드 ────────────────
+  var dropZone = document.getElementById('ref-drop-zone');
+  var fileInput = document.getElementById('ref-file-input');
+  var preview = document.getElementById('ref-preview');
+  var placeholder = document.getElementById('ref-placeholder');
+
+  function showPreview(file) {
+    selectedFile = file;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      preview.src = e.target.result;
+      preview.classList.remove('hidden');
+      placeholder.classList.add('hidden');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  dropZone.addEventListener('click', function() { fileInput.click(); });
+  fileInput.addEventListener('change', function() {
+    if (fileInput.files.length > 0) showPreview(fileInput.files[0]);
+  });
+  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('border-[#7c3aed]'); });
+  dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('border-[#7c3aed]'); });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('border-[#7c3aed]');
+    if (e.dataTransfer.files.length > 0) {
+      var f = e.dataTransfer.files[0];
+      if (/\.(png|jpe?g|webp)$/i.test(f.name)) showPreview(f);
+    }
+  });
+
+  // ─── PuLID 슬라이더 값 표시 ────────────────
+  var pulidSlider = document.getElementById('modal-pulid-strength');
+  var pulidVal = document.getElementById('pulid-val');
+  pulidSlider.addEventListener('input', function() { pulidVal.textContent = pulidSlider.value; });
+
+  // ─── 카드 / 셀렉트 생성 ────────────────────
   function createCard(c) {
     var card = document.createElement('div');
     card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden group';
 
     var thumbArea = document.createElement('div');
     thumbArea.className = 'aspect-[4/3] bg-[#353437] flex items-center justify-center';
-    /* Static SVG placeholder - no user content */
-    thumbArea.innerHTML = personSvg;
+    thumbArea.appendChild(createPersonSvg());
     card.appendChild(thumbArea);
 
     var body = document.createElement('div');
@@ -108,13 +237,20 @@
     genBtn.addEventListener('click', function() { openGenModal(c.CHAR_ID); });
     actions.appendChild(genBtn);
 
-    // 기존 후보가 있으면 "기존 후보 보기" 버튼 표시
     if (c.LATEST_JOB_ID) {
       var viewBtn = document.createElement('a');
       viewBtn.href = '/characters/candidates/' + encodeURIComponent(c.LATEST_JOB_ID);
       viewBtn.className = 'flex-1 bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-xs py-2 rounded-lg transition text-center';
       viewBtn.textContent = '기존 후보 보기';
       actions.appendChild(viewBtn);
+    }
+
+    if (c.REF_IMAGE_COUNT > 0) {
+      var galleryBtn = document.createElement('a');
+      galleryBtn.href = '/characters/' + encodeURIComponent(c.CHAR_ID) + '/gallery';
+      galleryBtn.className = 'flex-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 text-xs py-2 rounded-lg transition text-center font-semibold';
+      galleryBtn.textContent = '파생 이미지 (' + c.REF_IMAGE_COUNT + ')';
+      actions.appendChild(galleryBtn);
     }
 
     body.appendChild(actions);
@@ -133,10 +269,22 @@
     });
   }
 
+  function resetModal() {
+    selectedFile = null;
+    preview.classList.add('hidden');
+    placeholder.classList.remove('hidden');
+    preview.src = '';
+    fileInput.value = '';
+    pulidSlider.value = '0.55';
+    pulidVal.textContent = '0.55';
+    document.getElementById('modal-guidance').value = '3.5';
+    setMode('prompt');
+  }
+
   function openGenModal(charId) {
+    resetModal();
     populateSelect(charId);
-    countInput.value = '10';
-    // 저장된 프롬프트 불러오기
+    countInput.value = '30';
     var saved = loadPrompt(charId);
     document.getElementById('modal-prompt').value = saved;
     modal.classList.remove('hidden');
@@ -158,33 +306,52 @@
     }
   }
 
-  // 캐릭터 선택 변경 시 저장된 프롬프트 불러오기
   charSelect.addEventListener('change', function() {
     document.getElementById('modal-prompt').value = loadPrompt(charSelect.value);
   });
 
   document.getElementById('btn-generate-top').addEventListener('click', function() {
-    populateSelect(); countInput.value = '10';
+    resetModal();
+    populateSelect();
+    countInput.value = '30';
     document.getElementById('modal-prompt').value = loadPrompt(charSelect.value);
     modal.classList.remove('hidden');
   });
   document.getElementById('modal-cancel').addEventListener('click', function() { modal.classList.add('hidden'); });
   modal.addEventListener('click', function(e) { if (e.target === modal) modal.classList.add('hidden'); });
 
+  // ─── 생성 제출 (FormData로 전송) ───────────
   document.getElementById('modal-submit').addEventListener('click', async function() {
     var charId = charSelect.value;
-    var count = parseInt(countInput.value, 10) || 10;
+    var count = parseInt(countInput.value, 10) || 30;
     var promptText = document.getElementById('modal-prompt').value.trim();
-    // 프롬프트 저장
+    var guidance = document.getElementById('modal-guidance').value;
     if (promptText) savePrompt(charId, promptText);
+
+    if (currentMode === 'reference' && !selectedFile) {
+      alert('모드 A: 레퍼런스 사진을 업로드해주세요.');
+      return;
+    }
+
     var btn = document.getElementById('modal-submit');
     btn.disabled = true; btn.textContent = '생성 중...';
+
     try {
-      var payload = { charId: charId, count: count };
-      if (promptText) payload.prompt = promptText;
+      var formData = new FormData();
+      formData.append('charId', charId);
+      formData.append('count', String(count));
+      formData.append('mode', currentMode);
+      formData.append('guidance', guidance);
+      if (promptText) formData.append('prompt', promptText);
+
+      if (currentMode === 'reference') {
+        formData.append('referenceImage', selectedFile);
+        formData.append('pulidStrength', pulidSlider.value);
+      }
+
       var res = await fetch('/api/characters/generate-candidates', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        method: 'POST',
+        body: formData,
       });
       var json = await res.json();
       if (json.success && json.jobId) {

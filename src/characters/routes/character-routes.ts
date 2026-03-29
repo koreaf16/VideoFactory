@@ -16,7 +16,11 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { asyncHandler } from '../../common/middleware/async-handler';
 import { getConnection } from '../../db/connection';
-import { findCharacterById, listCharacters } from '../../db/queries/character-queries';
+import {
+  findCharacterById,
+  listCharacters,
+  countRefImagesByChar,
+} from '../../db/queries/character-queries';
 import { listCandidatesByJob, getLatestJobByChar } from '../../db/queries/candidate-queries';
 import {
   startCandidateGeneration,
@@ -113,7 +117,8 @@ router.get(
       const withJobs = await Promise.all(
         rows.map(async (r) => {
           const latestJobId = await getLatestJobByChar(conn, r.CHAR_ID as string);
-          return { ...r, LATEST_JOB_ID: latestJobId };
+          const refImageCount = await countRefImagesByChar(conn, r.CHAR_ID as string);
+          return { ...r, LATEST_JOB_ID: latestJobId, REF_IMAGE_COUNT: refImageCount };
         }),
       );
       res.json({ success: true, data: withJobs });
