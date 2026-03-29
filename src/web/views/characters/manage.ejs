@@ -12,7 +12,7 @@
   <div id="loading" class="text-center py-20 text-[#ccc3d8]">불러오는 중...</div>
 
   <!-- 캐릭터 카드 그리드 -->
-  <div id="char-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 hidden"></div>
+  <div id="char-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 hidden"></div>
 
   <!-- 빈 상태 -->
   <div id="empty-state" class="text-center py-20 text-[#ccc3d8] hidden">등록된 캐릭터가 없습니다.</div>
@@ -202,7 +202,7 @@
     card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden group';
 
     var thumbArea = document.createElement('div');
-    thumbArea.className = 'aspect-[4/3] bg-[#353437] flex items-center justify-center overflow-hidden';
+    thumbArea.className = 'aspect-square bg-[#353437] flex items-center justify-center overflow-hidden';
     if (c.ANCHOR_PATH) {
       var thumbImg = document.createElement('img');
       thumbImg.src = thumbUrl(c.ANCHOR_PATH);
@@ -216,15 +216,15 @@
     card.appendChild(thumbArea);
 
     var body = document.createElement('div');
-    body.className = 'p-4';
+    body.className = 'p-3';
 
     var header = document.createElement('div');
-    header.className = 'flex items-center justify-between mb-2';
+    header.className = 'flex items-center justify-between mb-1';
     var nameEl = document.createElement('h3');
-    nameEl.className = 'text-base font-semibold text-[#e5e1e4]';
+    nameEl.className = 'text-sm font-semibold text-[#e5e1e4] truncate';
     nameEl.textContent = c.NAME;
     var roleEl = document.createElement('span');
-    roleEl.className = 'text-[10px] bg-[#7c3aed]/20 text-[#d2bbff] px-2 py-0.5 rounded-full';
+    roleEl.className = 'text-[9px] bg-[#7c3aed]/20 text-[#d2bbff] px-1.5 py-0.5 rounded-full shrink-0 ml-1';
     roleEl.textContent = c.ROLE || '역할 없음';
     header.appendChild(nameEl);
     header.appendChild(roleEl);
@@ -233,15 +233,15 @@
     var status = statusMap[c.CHAR_TYPE] || c.CHAR_TYPE || '미정';
     var statusCls = statusColorMap[c.CHAR_TYPE] || 'bg-blue-500/20 text-blue-400';
     var badge = document.createElement('span');
-    badge.className = 'inline-block text-[10px] ' + statusCls + ' px-2 py-0.5 rounded-full mb-3';
+    badge.className = 'inline-block text-[9px] ' + statusCls + ' px-1.5 py-0.5 rounded-full mb-2';
     badge.textContent = status;
     body.appendChild(badge);
 
     var actions = document.createElement('div');
-    actions.className = 'flex gap-2 mt-4';
+    actions.className = 'flex flex-wrap gap-1.5 mt-2';
 
     var genBtn = document.createElement('button');
-    genBtn.className = 'flex-1 bg-[#7c3aed]/20 hover:bg-[#7c3aed]/40 text-[#d2bbff] text-xs py-2 rounded-lg transition font-semibold';
+    genBtn.className = 'flex-1 bg-[#7c3aed]/20 hover:bg-[#7c3aed]/40 text-[#d2bbff] text-[10px] py-1.5 rounded-md transition font-semibold';
     genBtn.textContent = '후보 생성';
     genBtn.addEventListener('click', function() { openGenModal(c.CHAR_ID); });
     actions.appendChild(genBtn);
@@ -249,14 +249,14 @@
     if (c.LATEST_JOB_ID) {
       var viewBtn = document.createElement('a');
       viewBtn.href = '/characters/candidates/' + encodeURIComponent(c.LATEST_JOB_ID);
-      viewBtn.className = 'flex-1 bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-xs py-2 rounded-lg transition text-center';
+      viewBtn.className = 'flex-1 bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-[10px] py-1.5 rounded-md transition text-center';
       viewBtn.textContent = '기존 후보 보기';
       actions.appendChild(viewBtn);
     }
 
     if (c.ANCHOR_PATH) {
       var derivBtn = document.createElement('button');
-      derivBtn.className = 'flex-1 bg-orange-500/20 hover:bg-orange-500/40 text-orange-400 text-xs py-2 rounded-lg transition font-semibold';
+      derivBtn.className = 'flex-1 bg-orange-500/20 hover:bg-orange-500/40 text-orange-400 text-[10px] py-1.5 rounded-md transition font-semibold';
       derivBtn.textContent = '파생 재생성';
       derivBtn.addEventListener('click', async function() {
         derivBtn.disabled = true;
@@ -287,7 +287,7 @@
     if (c.REF_IMAGE_COUNT > 0) {
       var galleryBtn = document.createElement('a');
       galleryBtn.href = '/characters/' + encodeURIComponent(c.CHAR_ID) + '/gallery';
-      galleryBtn.className = 'flex-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 text-xs py-2 rounded-lg transition text-center font-semibold';
+      galleryBtn.className = 'flex-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 text-[10px] py-1.5 rounded-md transition text-center font-semibold';
       galleryBtn.textContent = '파생 이미지 (' + c.REF_IMAGE_COUNT + ')';
       actions.appendChild(galleryBtn);
     }
