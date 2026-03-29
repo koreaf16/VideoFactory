@@ -53,6 +53,10 @@ router.get('/locations', (_req: Request, res: Response) => {
   res.render('locations/manage', { title: '장소 관리' });
 });
 
+router.get('/locations/candidates/:jobId', (req: Request, res: Response) => {
+  res.render('locations/candidates', { title: '장소 후보 선택', jobId: req.params.jobId });
+});
+
 // ─── 에피소드 관리 ──────────────────────────────────────────
 
 router.get('/episodes', (_req: Request, res: Response) => {
