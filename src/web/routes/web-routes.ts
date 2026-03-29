@@ -57,6 +57,14 @@ router.get('/locations/candidates/:jobId', (req: Request, res: Response) => {
   res.render('locations/candidates', { title: '장소 후보 선택', jobId: req.params.jobId });
 });
 
+router.get('/locations/derivatives/:jobId', (req: Request, res: Response) => {
+  res.render('locations/derivatives', { title: '장소 변형 검수', jobId: req.params.jobId });
+});
+
+router.get('/locations/:locationId/gallery', (req: Request, res: Response) => {
+  res.render('locations/gallery', { title: '장소 갤러리', locationId: req.params.locationId });
+});
+
 // ─── 에피소드 관리 ──────────────────────────────────────────
 
 router.get('/episodes', (_req: Request, res: Response) => {

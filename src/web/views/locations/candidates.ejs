@@ -183,11 +183,11 @@
         body: JSON.stringify({ anchorCandidateId: selectedCandidateId }),
       });
       var json = await res.json();
-      if (json.success) {
+      if (json.success && json.derivativeJobId) {
+        window.location.href = '/locations/derivatives/' + encodeURIComponent(json.derivativeJobId);
+      } else if (json.success) {
         btn.textContent = '확정 완료!';
         btn.className = 'bg-green-600 text-white text-sm font-semibold px-6 py-3 rounded-lg';
-        // Phase C에서 파생 생성 자동 시작 연동 예정
-        // 지금은 갤러리로 이동 없이 완료 표시만
       } else {
         alert('앵커 확정 실패: ' + (json.error || ''));
         btn.disabled = false;
