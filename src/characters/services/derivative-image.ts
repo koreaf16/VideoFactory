@@ -1,10 +1,19 @@
 /**
- * @module 파생 이미지 단건 생성 + DB 저장 + 메인 루프
- * @description derivative-generator.ts 에서 분리된 내부 헬퍼 모듈.
- *              외부에서는 derivative-generator.ts 를 통해 사용한다.
+ * @module 파생 이미지 생성 내부 헬퍼
+ * @description ComfyUI 호출, 파일 저장, DB 저장, 유사도 필터링 루프의
+ *              내부 구현 함수들을 담당한다.
+ *
+ * ┌──────────┐     ┌──────────────┐     ┌──────────┐
+ * │ preset   │ ──→ │ generateOne  │ ──→ │ 파일 저장 │
+ * │ + anchor │     │ Image        │     │ DB 저장  │
+ * └──────────┘     └──────────────┘     └──────────┘
+ *
+ * @dependencies comfyui, derivative-presets, derivative-filter, db
+ * @author AI Video Factory
  */
 
 import path from 'path';
+import oracledb from 'oracledb';
 import { comfyuiClient } from '../../comfyui/client';
 import { buildKontextEditWorkflow } from '../../comfyui/workflows/kontext-workflows';
 import { config } from '../../config';
@@ -78,7 +87,6 @@ async function saveDerivativeToDb(
   imagePath: string,
   poseTag: string,
 ): Promise<number | undefined> {
-  const oracledb = await import('oracledb');
   const conn = await getConnection();
   try {
     const result = await conn.execute(
@@ -88,6 +96,7 @@ async function saveDerivativeToDb(
       { charId, imagePath, poseTag, refId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER } },
       { autoCommit: true },
     );
+    // oracledb outBinds 타입이 any라서 타입 캐스팅 필요
     const outBinds = result.outBinds as unknown as { refId: number[] };
     return outBinds.refId[0];
   } finally {

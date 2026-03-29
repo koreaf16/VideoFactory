@@ -13,6 +13,7 @@
  * @author AI Video Factory
  */
 
+import fs from 'fs';
 import path from 'path';
 import { EventEmitter } from 'events';
 import { getConnection } from '../../db/connection';
@@ -130,7 +131,6 @@ export async function regenerateSingleDerivative(
 
   // 기존 파일 삭제
   if (existing) {
-    const fs = await import('fs');
     if (fs.existsSync(existing.imagePath)) fs.unlinkSync(existing.imagePath);
     const thumbPath = path.join(
       path.dirname(existing.imagePath),
