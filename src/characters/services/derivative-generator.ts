@@ -25,7 +25,6 @@ import { createThumbnail } from '../../common/utils/image-utils';
 import { logger } from '../../common/logger';
 import {
   DERIVATIVE_PRESETS,
-  extractAppearanceOnly,
   type DerivativePreset,
   type DerivativeResult,
   type DerivativeJob,
@@ -107,6 +106,13 @@ export function stopDerivativeGeneration(jobId: string): boolean {
   return true;
 }
 
+/** 원본 프리셋 프롬프트에 수정 지시를 조합한다. */
+export function buildRegenPrompt(basePrompt: string, modifyPrompt: string): string {
+  const trimmed = modifyPrompt.trim();
+  if (!trimmed) return basePrompt;
+  return `${basePrompt} Additionally: ${trimmed}`;
+}
+
 // ─── 이미지 생성 (1장) ──────────────────────────────────
 
 async function generateOneImage(
@@ -116,17 +122,15 @@ async function generateOneImage(
   outDir: string,
 ): Promise<DerivativeResult | null> {
   const seed = Math.floor(Math.random() * 999999999);
-  const appearancePrompt = extractAppearanceOnly(basePrompt);
-  const fullPrompt = appearancePrompt
-    ? `${preset.promptSuffix}, ${appearancePrompt}`
-    : preset.promptSuffix;
+  // Kontext ReferenceLatent가 앵커 이미지에서 identity를 보존하므로
+  // 편집 프롬프트에 외모 토큰을 추가하면 오히려 편집 지시가 희석된다.
+  const editPrompt = preset.promptSuffix;
 
   job.currentStep = `${preset.label} 생성 중... (${job.generated + 1}/${job.total})`;
   emitProgress(job);
 
   await comfyuiClient.connect();
   const anchorName = await comfyuiClient.uploadImage(job.anchorPath);
-  const editPrompt = `same character, ${preset.promptSuffix}`;
   const workflow = buildKontextEditWorkflow({
     anchorImageName: anchorName,
     editPrompt,
@@ -134,7 +138,8 @@ async function generateOneImage(
     filenamePrefix: `${job.charId}_${preset.label}_${seed}`,
   });
   const promptId = await comfyuiClient.submitWorkflow(workflow);
-  const images = await comfyuiClient.waitForResult(promptId, 120_000);
+  // Flux Kontext ReferenceLatent는 레이턴트 크기가 2배 → RTX 3090 기준 최대 5분
+  const images = await comfyuiClient.waitForResult(promptId, 300_000);
   if (images.length === 0) throw new Error('ComfyUI 편집 결과 없음');
 
   const imageUrl = `${config.comfyui.httpUrl}/view?filename=${images[0].filename}&subfolder=${images[0].subfolder ?? ''}&type=${images[0].type ?? 'output'}`;
@@ -154,7 +159,7 @@ async function generateOneImage(
     refId,
     imagePath,
     label: preset.label,
-    prompt: fullPrompt,
+    prompt: editPrompt,
     seed,
     skipSimilarity: preset.skipSimilarity,
   };
