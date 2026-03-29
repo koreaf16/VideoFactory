@@ -70,10 +70,25 @@
   <!-- 이미지 모달 -->
   <div id="img-modal" class="fixed inset-0 bg-black/90 z-50 flex items-center justify-center hidden">
     <div class="relative max-w-[85vw] max-h-[90vh] flex flex-col items-center">
-      <img id="img-modal-src" class="max-w-full max-h-[75vh] rounded-lg shadow-2xl" src="" alt="">
+      <img id="img-modal-src" class="max-w-full max-h-[65vh] rounded-lg shadow-2xl" src="" alt="">
       <p id="img-modal-label" class="text-sm text-[#d2bbff] font-semibold mt-3"></p>
       <p id="img-modal-prompt" class="text-xs text-[#ccc3d8] mt-1 max-w-xl text-center"></p>
-      <button id="modal-close" class="mt-4 bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-6 py-2.5 rounded-lg transition">닫기</button>
+
+      <!-- 수정 프롬프트 입력 -->
+      <div class="mt-4 w-full max-w-xl">
+        <p class="text-xs text-[#ccc3d8] mb-1">수정 지시 (선택)</p>
+        <textarea
+          id="img-modal-modify"
+          class="w-full bg-[#1b1b1d] border border-[#353437] text-[#e5e1e4] text-sm rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-[#7c3aed]"
+          rows="2"
+          placeholder="예: 눈을 더 크게 만들어줘, 배경을 파란색으로 바꿔줘..."
+        ></textarea>
+      </div>
+
+      <div class="mt-3 flex gap-3">
+        <button id="modal-regen-btn" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm px-5 py-2 rounded-lg transition font-semibold">재생성</button>
+        <button id="modal-close" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-6 py-2 rounded-lg transition">닫기</button>
+      </div>
     </div>
   </div>
 </div>
@@ -95,6 +110,7 @@
   function createResultCard(r) {
     var card = document.createElement('div');
     card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden cursor-pointer group hover:ring-2 hover:ring-[#7c3aed] transition';
+    card.dataset.label = r.label;
 
     var imgWrap = document.createElement('div');
     imgWrap.className = 'aspect-[3/4] bg-[#353437] flex items-center justify-center';
@@ -125,9 +141,11 @@
 
     card.addEventListener('click', function() {
       if (r.imagePath) {
-        document.getElementById('img-modal-src').src = pathToUrl(r.imagePath);  // 원본 (characters.js)
+        currentModalLabel = r.label;
+        document.getElementById('img-modal-src').src = pathToUrl(r.imagePath);
         document.getElementById('img-modal-label').textContent = r.label;
         document.getElementById('img-modal-prompt').textContent = r.prompt || '';
+        document.getElementById('img-modal-modify').value = '';
         document.getElementById('img-modal').classList.remove('hidden');
       }
     });
@@ -143,6 +161,7 @@
   }
 
   var isStopping = false;
+  var currentModalLabel = '';
 
   function updateStatus(data) {
     var pct = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0;
@@ -237,6 +256,52 @@
 
   document.getElementById('modal-close').addEventListener('click', function() {
     document.getElementById('img-modal').classList.add('hidden');
+  });
+  document.getElementById('modal-regen-btn').addEventListener('click', function() {
+    var label = currentModalLabel;
+    var modifyPrompt = document.getElementById('img-modal-modify').value;
+    if (!label) return;
+
+    document.getElementById('img-modal').classList.add('hidden');
+
+    var card = document.querySelector('[data-label="' + CSS.escape(label) + '"]');
+    var overlayId = 'regen-overlay-' + label.replace(/\W/g, '_');
+    if (card) {
+      var overlay = document.createElement('div');
+      overlay.id = overlayId;
+      overlay.className = 'absolute inset-0 bg-black/70 flex items-center justify-center rounded-lg z-10';
+      var spinner = document.createElement('span');
+      spinner.className = 'animate-spin text-white text-2xl';
+      spinner.textContent = '\u25D6';
+      overlay.appendChild(spinner);
+      card.style.position = 'relative';
+      card.appendChild(overlay);
+    }
+
+    fetch('/api/characters/derivatives/' + JOB_ID + '/regenerate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: label, modifyPrompt: modifyPrompt })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      var ov = document.getElementById(overlayId);
+      if (ov) ov.remove();
+      if (data.success && data.result && card) {
+        var img = card.querySelector('img');
+        if (img) {
+          img.src = thumbUrl(data.result.imagePath) + '?t=' + Date.now();
+        }
+        addLog(label + ' 재생성 완료');
+      } else {
+        addLog('재생성 실패: ' + (data.error || '알 수 없는 오류'));
+      }
+    })
+    .catch(function(err) {
+      var ov = document.getElementById(overlayId);
+      if (ov) ov.remove();
+      addLog('재생성 실패: ' + err.message);
+    });
   });
   document.getElementById('img-modal').addEventListener('click', function(e) {
     if (e.target === this) this.classList.add('hidden');
