@@ -64,7 +64,6 @@ export interface AnchorInsertData {
   entityId: string;
   imageBlob: Buffer;
   thumbnailBlob: Buffer;
-  imagePath: string;
   jobId: string;
   promptText: string;
   seed: number;

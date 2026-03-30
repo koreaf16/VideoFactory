@@ -13,21 +13,16 @@
  * @author AI Video Factory
  */
 
-import path from 'path';
 import { generateJobId } from '../../common/utils/time-utils';
-import { ensureDir } from '../../common/utils/file-utils';
 import { logger } from '../../common/logger';
 import { processOneAnchor } from './anchor-image-processor';
 import type {
   AnchorGenerationRequest,
   AnchorGenerationJob,
   AnchorResult,
-  AnchorEntityType,
-  PulidModeOptions,
 } from '../../common/types/anchor-image.types';
 
 const activeJobs: Map<string, AnchorGenerationJob> = new Map();
-const EXPORTS_BASE = path.resolve('exports/anchors');
 
 /**
  * 앵커 이미지 생성 작업을 시작한다.
@@ -36,9 +31,7 @@ const EXPORTS_BASE = path.resolve('exports/anchors');
  * @param req - 생성 요청 정보
  * @returns jobId 문자열
  */
-export async function startAnchorGeneration(
-  req: AnchorGenerationRequest,
-): Promise<string> {
+export async function startAnchorGeneration(req: AnchorGenerationRequest): Promise<string> {
   const jobId = generateJobId('anch');
   const job: AnchorGenerationJob = {
     jobId,
@@ -103,16 +96,11 @@ export function stopAnchorGeneration(jobId: string): boolean {
 
 /**
  * 배치 작업을 순차 처리한다. 요청 개수만큼 루프를 돌며 processOneAnchor를 호출한다.
+ * (BLOB 기반 - 디스크 저장 없음)
  *
  * @internal
  */
-async function processBatch(
-  job: AnchorGenerationJob,
-  req: AnchorGenerationRequest,
-): Promise<void> {
-  const outDir = path.join(EXPORTS_BASE, req.entityType, req.entityId, job.jobId);
-  await ensureDir(outDir);
-
+async function processBatch(job: AnchorGenerationJob, req: AnchorGenerationRequest): Promise<void> {
   for (let i = 0; i < req.count; i++) {
     if (job.shouldStop) {
       job.status = 'stopped';
@@ -125,7 +113,7 @@ async function processBatch(
     }
 
     try {
-      await processOneAnchor(job, req.entityType, outDir, req.customPrompt, req.pulidOpts);
+      await processOneAnchor(job, req.entityType, req.customPrompt, req.pulidOpts);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       job.lastError = msg;

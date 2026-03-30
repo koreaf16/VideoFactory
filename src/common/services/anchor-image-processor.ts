@@ -1,17 +1,16 @@
 /**
  * @module 앵커 이미지 개별 처리
- * @description 1개 앵커 이미지 생성 → 품질 평가 → DB 저장
+ * @description 1개 앵커 이미지 생성 → 품질 평가 → DB 저장 (BLOB만)
  *
  * ┌─────────────────┐     ┌──────────────┐     ┌───────────┐     ┌─────────┐
  * │ ComfyUI 생성    │ ──→ │ 품질 평가    │ ──→ │ 얼굴추출  │ ──→ │ DB저장  │
- * │ (이미지)        │     │ (Python API) │     │ (벡터)    │     │ (Oracle)│
+ * │ (Buffer)        │     │ (Python API) │     │ (벡터)    │     │ (Oracle)│
  * └─────────────────┘     └──────────────┘     └───────────┘     └─────────┘
  *
- * @dependencies comfyui-client, quality-api, embedding-api, file-utils, image-utils
+ * @dependencies comfyui-client, quality-api, embedding-api, image-utils
  * @author AI Video Factory
  */
 
-import path from 'path';
 import { comfyuiClient } from '../../comfyui/client';
 import {
   buildKontextAnchorWorkflow,
@@ -22,7 +21,6 @@ import { scoreImage } from '../../python-api/endpoints/quality-api';
 import { getFaceBoundingBox } from '../../python-api/endpoints/embedding-api';
 import { getConnection } from '../../db/connection';
 import { insertAnchor } from '../../db/queries/anchor-image-queries';
-import { writeFileBuffer, readFileBuffer } from '../../common/utils/file-utils';
 import { createThumbnail } from '../../common/utils/image-utils';
 import { logger } from '../../common/logger';
 import type {
@@ -45,21 +43,20 @@ function assignGrade(score: number): string {
 }
 
 /**
- * ComfyUI에서 이미지를 생성하고 로컬 디렉토리에 저장한다.
- * 썸네일도 함께 생성된다.
+ * ComfyUI에서 이미지를 생성하고 Buffer로만 반환한다.
+ * 썸네일도 함께 생성되어 반환된다.
+ * (디스크 저장 없음)
  *
  * @internal
+ * @returns [imageBuffer, thumbnailBuffer, seed, prompt]
  */
 async function generateAndSaveImage(
   entityType: AnchorEntityType,
   entityId: string,
-  outDir: string,
   customPrompt?: string,
   pulidOpts?: PulidModeOptions,
-): Promise<string> {
+): Promise<[Buffer, Buffer, number, string]> {
   const seed = Math.floor(Math.random() * 999999999);
-
-  // 프롬프트 빌드 (간단하게 customPrompt 사용, 또는 엔티티 타입별 기본값)
   const prompt = customPrompt || `${entityType} ${entityId}`;
 
   await comfyuiClient.connect();
@@ -90,104 +87,90 @@ async function generateAndSaveImage(
   const imageUrl = `${config.comfyui.httpUrl}/view?filename=${images[0].filename}&subfolder=${images[0].subfolder ?? ''}&type=${images[0].type ?? 'output'}`;
   const imageResponse = await fetch(imageUrl);
   const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-  const filename = `${entityType}_${entityId}_${seed}.png`;
-  const imagePath = path.join(outDir, filename);
-  await writeFileBuffer(imagePath, imageBuffer);
   const thumbnail = await createThumbnail(imageBuffer);
-  await writeFileBuffer(path.join(outDir, `thumb_${filename}`), thumbnail);
 
-  return imagePath;
+  return [imageBuffer, thumbnail, seed, prompt];
 }
 
 /**
- * 1개의 앵커 이미지를 생성, 평가, 저장한다.
+ * 1개의 앵커 이미지를 생성, 평가, 저장한다 (BLOB만).
  * job.anchors 배열에 결과를 추가하고 job.completed를 증가시킨다.
  *
  * @param job - 현재 배치 작업 정보 (진행상황 업데이트용)
  * @param entityType - 엔티티 타입 ('character', 'location', 'npc')
- * @param outDir - 이미지 저장 디렉토리
  * @param customPrompt - 커스텀 프롬프트 (선택사항)
  * @param pulidOpts - PuLID 모드 옵션 (선택사항)
  */
 export async function processOneAnchor(
   job: AnchorGenerationJob,
   entityType: AnchorEntityType,
-  outDir: string,
   customPrompt?: string,
   pulidOpts?: PulidModeOptions,
 ): Promise<void> {
-  const seed = Math.floor(Math.random() * 999999999);
-  const prompt = customPrompt || `${entityType} ${job.entityId}`;
-
-  const imagePath = await generateAndSaveImage(
+  // 1. 이미지 생성 (ComfyUI) → Buffer로만 반환 (디스크 저장 없음)
+  const [imageBuffer, thumbnailBuffer, seed, prompt] = await generateAndSaveImage(
     entityType,
     job.entityId,
-    outDir,
     customPrompt,
     pulidOpts,
   );
 
   job.status = 'scoring';
+  let qualityScore: number | null = null;
+  let grade: string | null = null;
   let faceBbox: string | null = null;
 
   try {
-    const [scoreResult, bboxResult] = await Promise.all<
-      { success: boolean; data?: { score: number } } | { success: boolean; data?: unknown }
-    >([
-      scoreImage(imagePath),
+    // 2. 품질 평가 (Buffer 기반)
+    const scorePromise = scoreImage(imageBuffer as unknown as string);
+    const bboxPromise =
       entityType === 'character'
-        ? getFaceBoundingBox(imagePath)
-        : Promise.resolve({ success: false } as const),
-    ]);
+        ? getFaceBoundingBox(imageBuffer as unknown as string)
+        : Promise.resolve(null);
 
-    let qualityScore: number | null = null;
-    let grade: string | null = null;
+    const [scoreResult, bboxResult] = await Promise.all([scorePromise, bboxPromise]);
 
-    if (scoreResult.success && scoreResult.data !== undefined) {
-      qualityScore = scoreResult.data.score;
-      grade = assignGrade(scoreResult.data.score);
+    if (scoreResult?.success && scoreResult?.data) {
+      qualityScore = (scoreResult.data as { score: number }).score;
+      grade = assignGrade(qualityScore);
     }
 
-    if (bboxResult.success && bboxResult.data !== undefined) {
+    if (entityType === 'character' && bboxResult?.success && bboxResult?.data) {
       faceBbox = JSON.stringify(bboxResult.data);
       logger.debug('얼굴 좌표 추출 완료', { jobId: job.jobId, bbox: faceBbox });
-    }
-
-    // DB 저장
-    const imageBuffer = await readFileBuffer(imagePath);
-    const thumbBuffer = await createThumbnail(imageBuffer);
-
-    const conn = await getConnection();
-    try {
-      const anchorId = await insertAnchor(conn, {
-        entityType,
-        entityId: job.entityId,
-        imageBlob: imageBuffer,
-        thumbnailBlob: thumbBuffer,
-        imagePath,
-        jobId: job.jobId,
-        promptText: prompt,
-        seed,
-        qualityScore: qualityScore ?? null,
-        grade: grade ?? null,
-        faceBbox,
-      });
-
-      job.anchors.push({
-        anchorId,
-        imageUrl: `/api/images/anchors/${anchorId}`,
-        thumbnailUrl: `/api/images/anchors/${anchorId}?thumbnail=true`,
-        prompt,
-        seed,
-        qualityScore: qualityScore ?? undefined,
-        grade: grade ?? undefined,
-      });
-    } finally {
-      await conn.close();
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.warn('AI 분석 일부 실패 (건너뜀)', { jobId: job.jobId, error: msg });
+  }
+
+  // 3. DB 저장 (BLOB만, 파일 경로 없음)
+  const conn = await getConnection();
+  try {
+    const anchorId = await insertAnchor(conn, {
+      entityType,
+      entityId: job.entityId,
+      imageBlob: imageBuffer,
+      thumbnailBlob: thumbnailBuffer,
+      jobId: job.jobId,
+      promptText: prompt,
+      seed,
+      qualityScore,
+      grade,
+      faceBbox,
+    });
+
+    job.anchors.push({
+      anchorId,
+      imageUrl: `/api/images/anchors/${anchorId}`,
+      thumbnailUrl: `/api/images/anchors/${anchorId}?thumbnail=true`,
+      prompt,
+      seed,
+      qualityScore: qualityScore ?? undefined,
+      grade: grade ?? undefined,
+    });
+  } finally {
+    await conn.close();
   }
 
   job.completed += 1;

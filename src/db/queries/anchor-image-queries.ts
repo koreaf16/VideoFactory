@@ -20,10 +20,10 @@ import type { AnchorImageRow, AnchorInsertData } from '../../common/types/anchor
 
 export const INSERT_ANCHOR = `
   INSERT INTO anchor_images
-    (entity_type, entity_id, image_blob, thumbnail_blob, image_path,
+    (entity_type, entity_id, image_blob, thumbnail_blob,
      job_id, prompt_text, seed, quality_score, grade, face_bbox)
   VALUES
-    (:entityType, :entityId, :imageBlob, :thumbnailBlob, :imagePath,
+    (:entityType, :entityId, :imageBlob, :thumbnailBlob,
      :jobId, :promptText, :seed, :qualityScore, :grade, :faceBbox)
   RETURNING anchor_id INTO :anchorId
 `;
@@ -51,24 +51,22 @@ export const GET_BY_ENTITY = `
  */
 export async function insertAnchor(
   conn: oracledb.Connection,
-  data: AnchorInsertData
+  data: AnchorInsertData,
 ): Promise<number> {
   try {
     const binds = {
       ...data,
       anchorId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
     };
-    const result = await conn.execute(
-      INSERT_ANCHOR,
-      binds as unknown as Record<string, unknown>,
-      { autoCommit: true }
-    );
+    const result = await conn.execute(INSERT_ANCHOR, binds as unknown as Record<string, unknown>, {
+      autoCommit: true,
+    });
     const outBinds = result.outBinds as unknown as { anchorId: number[] };
     const anchorId = outBinds.anchorId[0];
     logger.debug('앵커 이미지 저장', {
       entityType: data.entityType,
       entityId: data.entityId,
-      anchorId
+      anchorId,
     });
     return anchorId;
   } catch (error) {
@@ -85,13 +83,13 @@ export async function insertAnchor(
  */
 export async function listByJob(
   conn: oracledb.Connection,
-  jobId: string
+  jobId: string,
 ): Promise<AnchorImageRow[]> {
   try {
     const result = await conn.execute<AnchorImageRow>(
       LIST_BY_JOB,
       { jobId },
-      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      { outFormat: oracledb.OUT_FORMAT_OBJECT },
     );
     logger.debug('앵커 목록 조회', { jobId, count: result.rows?.length ?? 0 });
     return result.rows ?? [];
@@ -109,13 +107,13 @@ export async function listByJob(
  */
 export async function getAnchor(
   conn: oracledb.Connection,
-  anchorId: number
+  anchorId: number,
 ): Promise<AnchorImageRow | null> {
   try {
     const result = await conn.execute<AnchorImageRow>(
       GET_ANCHOR,
       { anchorId },
-      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      { outFormat: oracledb.OUT_FORMAT_OBJECT },
     );
     logger.debug('앵커 조회', { anchorId });
     return result.rows?.[0] ?? null;
@@ -135,13 +133,13 @@ export async function getAnchor(
 export async function getByEntity(
   conn: oracledb.Connection,
   entityType: string,
-  entityId: string
+  entityId: string,
 ): Promise<AnchorImageRow | null> {
   try {
     const result = await conn.execute<AnchorImageRow>(
       GET_BY_ENTITY,
       { entityType, entityId },
-      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      { outFormat: oracledb.OUT_FORMAT_OBJECT },
     );
     logger.debug('엔티티 앵커 조회', { entityType, entityId });
     return result.rows?.[0] ?? null;
@@ -162,7 +160,7 @@ export async function setEntityAnchor(
   conn: oracledb.Connection,
   entityType: string,
   entityId: string,
-  anchorId: number
+  anchorId: number,
 ): Promise<void> {
   try {
     // entity_type에 따라 분기
@@ -170,13 +168,13 @@ export async function setEntityAnchor(
       await conn.execute(
         'UPDATE characters SET anchor_id = :anchorId WHERE char_id = :entityId',
         { anchorId, entityId },
-        { autoCommit: true }
+        { autoCommit: true },
       );
     } else if (entityType === 'location') {
       await conn.execute(
         'UPDATE locations SET anchor_id = :anchorId WHERE location_id = :entityId',
         { anchorId, entityId },
-        { autoCommit: true }
+        { autoCommit: true },
       );
     }
     logger.info('엔티티 앵커 설정', { entityType, entityId, anchorId });
@@ -195,20 +193,20 @@ export async function setEntityAnchor(
 export async function clearEntityAnchor(
   conn: oracledb.Connection,
   entityType: string,
-  entityId: string
+  entityId: string,
 ): Promise<void> {
   try {
     if (entityType === 'character') {
       await conn.execute(
         'UPDATE characters SET anchor_id = NULL WHERE char_id = :entityId',
         { entityId },
-        { autoCommit: true }
+        { autoCommit: true },
       );
     } else if (entityType === 'location') {
       await conn.execute(
         'UPDATE locations SET anchor_id = NULL WHERE location_id = :entityId',
         { entityId },
-        { autoCommit: true }
+        { autoCommit: true },
       );
     }
     logger.info('엔티티 앵커 해제', { entityType, entityId });
