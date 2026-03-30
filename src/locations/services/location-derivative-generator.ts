@@ -1,8 +1,8 @@
 /**
  * @module 장소 앵글 변형 생성 서비스
- * @description 앵커 이미지 + promptBase + 앵글 프리셋을 결합하여 Flux Dev img2img(denoise 0.65)로 다양한 앵글 변형을 생성한다.
+ * @description 앵커 이미지 + promptBase + 앵글 프리셋을 결합하여 ControlNet + IP-Adapter로 다양한 앵글 변형을 생성한다.
  *
- * @dependencies comfyui, location-presets, db
+ * @dependencies comfyui, location-presets, blender-renderer, db
  * @author AI Video Factory
  */
 
@@ -11,7 +11,8 @@ import path from 'path';
 import { EventEmitter } from 'events';
 import oracledb from 'oracledb';
 import { comfyuiClient } from '../../comfyui/client';
-import { buildFluxImg2ImgWorkflow } from '../../comfyui/workflows/kontext-workflows';
+import { buildControlNetDerivativeWorkflow } from '../../comfyui/workflows/controlnet-workflows';
+import { getMapPaths } from './blender-renderer';
 import { config } from '../../config';
 import { getConnection } from '../../db/connection';
 import { ensureDir, writeFileBuffer } from '../../common/utils/file-utils';
@@ -53,17 +54,24 @@ async function generateOneAngle(
   job.currentStep = `${preset.label} 생성 중... (${job.completed + 1}/${job.total})`;
   emitProgress(job);
 
-  await comfyuiClient.connect();
-  const anchorName = await comfyuiClient.uploadImage(job.anchorPath);
+  // depth/normal map을 카메라 ID로 조회
+  const { depthMaps, normalMaps } = getMapPaths(job.locationId);
+  const depthFile = depthMaps.find((f) => path.basename(f, '.png') === preset.cameraId);
+  const normalFile = normalMaps.find((f) => path.basename(f, '.png') === preset.cameraId);
+  if (!depthFile) throw new Error(`depth map 없음: ${preset.cameraId}`);
 
-  // img2img: 앵커 이미지를 시작점으로 부분 재생성(denoise 0.65)
-  // promptBase + 앵글 지시로 장소 분위기는 유지하면서 앵글만 변경
-  const fullPrompt = `${job.promptBase}, ${preset.regenHint}`;
-  const workflow = buildFluxImg2ImgWorkflow({
-    anchorImageName: anchorName,
-    prompt: fullPrompt,
+  await comfyuiClient.connect();
+  const depthName = await comfyuiClient.uploadImage(depthFile);
+  const normalName = normalFile ? await comfyuiClient.uploadImage(normalFile) : depthName;
+  const anchorName = await comfyuiClient.uploadImage(job.anchorPath); // style anchor
+
+  // ControlNet + IP-Adapter: depth/normal map으로 공간 구조 유지, 스타일 앵커로 색감/분위기 유지
+  const workflow = buildControlNetDerivativeWorkflow({
+    depthMapName: depthName,
+    normalMapName: normalName,
+    styleAnchorName: anchorName,
+    prompt: job.promptBase,
     seed,
-    denoise: 0.65,
     filenamePrefix: `${job.locationId}_${preset.angle}_${seed}`,
   });
   const promptId = await comfyuiClient.submitWorkflow(workflow);
@@ -130,7 +138,7 @@ export function startLocDerivativeGeneration(
     results: [],
   };
   activeJobs.set(jobId, job);
-  logger.info('장소 변형 생성 시작 (txt2img)', { jobId, locationId });
+  logger.info('장소 변형 생성 시작 (ControlNet + IP-Adapter)', { jobId, locationId });
 
   const outDir = path.join(EXPORTS_BASE, locationId, jobId);
   processLoop(job, LOCATION_PRESETS, outDir).catch((err: unknown) => {
