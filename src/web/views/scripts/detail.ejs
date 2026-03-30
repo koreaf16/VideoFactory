@@ -1,12 +1,16 @@
 <div>
-  <!-- Back link -->
-  <div class="mb-6">
+  <!-- Back link & Actions -->
+  <div class="flex items-center justify-between mb-6">
     <a href="/scripts" class="inline-flex items-center gap-1.5 text-sm text-[#ccc3d8] hover:text-white transition">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
       </svg>
       마스터 대본 목록
     </a>
+    <div class="flex gap-3">
+      <a id="btn-edit" href="#" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition inline-block">수정</a>
+      <button id="btn-delete" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 text-sm font-semibold px-5 py-2.5 rounded-lg transition">삭제</button>
+    </div>
   </div>
 
   <!-- 로딩 -->
@@ -87,15 +91,15 @@ var SCRIPT_ID = <%= scriptId %>;
   };
 
   function buildEpRow(ep) {
-    var epNum = ep.EP_NUMBER != null ? 'EP.' + String(ep.EP_NUMBER).padStart(2, '0') : '--';
-    var status = ep.STATUS || 'draft';
+    var epNum = ep.epNumber != null ? 'EP.' + String(ep.epNumber).padStart(2, '0') : '--';
+    var status = ep.status || 'draft';
     var colorClass = epStatusColors[status] || 'bg-gray-500/20 text-gray-400';
     var label = epStatusLabels[status] || status;
 
     var tr = document.createElement('tr');
     tr.className = 'hover:bg-[#2a2a2c]/50 transition cursor-pointer';
     tr.addEventListener('click', function () {
-      window.location.href = '/episodes/' + ep.EP_ID + '/edit';
+      window.location.href = '/episodes/' + ep.epId + '/edit';
     });
 
     var tdNum = document.createElement('td');
@@ -105,7 +109,7 @@ var SCRIPT_ID = <%= scriptId %>;
 
     var tdTitle = document.createElement('td');
     tdTitle.className = 'px-5 py-4 text-sm text-[#e5e1e4]';
-    tdTitle.textContent = ep.TITLE || '(제목 없음)';
+    tdTitle.textContent = ep.title || '(제목 없음)';
     tr.appendChild(tdTitle);
 
     var tdStatus = document.createElement('td');
@@ -134,15 +138,15 @@ var SCRIPT_ID = <%= scriptId %>;
       var s = json.data;
 
       // Title
-      document.getElementById('script-title').textContent = s.TITLE || '(제목 없음)';
+      document.getElementById('script-title').textContent = s.title || '(제목 없음)';
 
       // Meta
-      document.getElementById('meta-genre').textContent = s.GENRE || '--';
-      document.getElementById('meta-synopsis').textContent = s.SYNOPSIS || '--';
-      document.getElementById('meta-world').textContent = s.WORLD_SETTING || '--';
+      document.getElementById('meta-genre').textContent = s.genre || '--';
+      document.getElementById('meta-synopsis').textContent = s.synopsis || '--';
+      document.getElementById('meta-world').textContent = s.worldSetting || '--';
 
       // Status badge
-      var status = s.STATUS || 'draft';
+      var status = s.status || 'draft';
       var colorClass = statusColors[status] || 'bg-gray-500/20 text-gray-400';
       var badgeEl = document.getElementById('meta-status-badge');
       badgeEl.className = 'inline-flex items-center text-[10px] font-semibold px-2.5 py-1 rounded-full ' + colorClass;
@@ -166,6 +170,35 @@ var SCRIPT_ID = <%= scriptId %>;
       }
 
       document.getElementById('script-detail').classList.remove('hidden');
+
+      // Set edit button href
+      document.getElementById('btn-edit').href = '/scripts/' + SCRIPT_ID + '/edit';
+
+      // Delete button handler
+      var deleteBtn = document.getElementById('btn-delete');
+      deleteBtn.addEventListener('click', function () {
+        if (confirm('정말 이 대본을 삭제하시겠습니까?\n(에피소드가 없을 경우에만 삭제 가능합니다)')) {
+          deleteBtn.disabled = true;
+          deleteBtn.textContent = '삭제 중...';
+
+          fetch('/api/master-scripts/' + SCRIPT_ID, { method: 'DELETE' })
+            .then(function (res) { return res.json(); })
+            .then(function (json) {
+              if (json.success) {
+                window.location.href = '/scripts';
+              } else {
+                alert('삭제 실패: ' + (json.error || 'Unknown error'));
+                deleteBtn.disabled = false;
+                deleteBtn.textContent = '삭제';
+              }
+            })
+            .catch(function (err) {
+              alert('오류: ' + (err instanceof Error ? err.message : String(err)));
+              deleteBtn.disabled = false;
+              deleteBtn.textContent = '삭제';
+            });
+        }
+      });
     })
     .catch(function (err) {
       console.error('대본 상세 로드 실패:', err);

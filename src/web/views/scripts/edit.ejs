@@ -1,0 +1,143 @@
+<div>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <a href="/scripts" class="text-xs text-[#ccc3d8] hover:text-[#d2bbff] transition mb-2 inline-block">&larr; 마스터 대본 목록</a>
+      <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">마스터 대본 수정</h2>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading" class="text-center py-20 text-[#ccc3d8]">불러오는 중...</div>
+
+  <!-- Edit form -->
+  <div id="form-container" class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-6 max-w-2xl hidden">
+    <div class="space-y-4">
+      <!-- Title -->
+      <div>
+        <label class="block text-sm font-medium text-[#ccc3d8] mb-2">제목 <span class="text-red-400">*</span></label>
+        <input id="script-title" type="text" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]" placeholder="마스터 대본 제목 입력" required>
+      </div>
+
+      <!-- Genre -->
+      <div>
+        <label class="block text-sm font-medium text-[#ccc3d8] mb-2">장르</label>
+        <input id="script-genre" type="text" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]" placeholder="예: 판타지, 드라마, 액션">
+      </div>
+
+      <!-- Synopsis -->
+      <div>
+        <label class="block text-sm font-medium text-[#ccc3d8] mb-2">시놉시스</label>
+        <textarea id="script-synopsis" rows="4" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed] resize-none" placeholder="이 마스터 대본의 전체 줄거리를 설명하세요"></textarea>
+      </div>
+
+      <!-- World Setting -->
+      <div>
+        <label class="block text-sm font-medium text-[#ccc3d8] mb-2">세계관 설정</label>
+        <textarea id="script-world" rows="4" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed] resize-none" placeholder="세계관 설정, 배경, 특수한 규칙 등을 설명하세요"></textarea>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-3 justify-end mt-6">
+      <a href="/scripts" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-5 py-2.5 rounded-lg transition inline-block">취소</a>
+      <button id="btn-save" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition">저장</button>
+    </div>
+
+    <!-- Status -->
+    <div id="status" class="mt-4 text-sm text-[#ccc3d8]/60 hidden"></div>
+  </div>
+
+  <!-- Error state -->
+  <div id="error-state" class="text-center py-20 text-red-400 hidden">대본을 불러올 수 없습니다.</div>
+</div>
+
+<script>
+var SCRIPT_ID = <%= scriptId %>;
+
+(function () {
+  var titleEl = document.getElementById('script-title');
+  var genreEl = document.getElementById('script-genre');
+  var synopsisEl = document.getElementById('script-synopsis');
+  var worldEl = document.getElementById('script-world');
+  var btn = document.getElementById('btn-save');
+  var statusEl = document.getElementById('status');
+  var formContainer = document.getElementById('form-container');
+  var loading = document.getElementById('loading');
+  var errorState = document.getElementById('error-state');
+
+  function setStatus(msg, isError) {
+    statusEl.textContent = msg;
+    statusEl.className = 'mt-4 text-sm ' + (isError ? 'text-red-400' : 'text-green-400');
+    statusEl.classList.remove('hidden');
+  }
+
+  // Load script data
+  fetch('/api/master-scripts/' + SCRIPT_ID)
+    .then(function (res) { return res.json(); })
+    .then(function (json) {
+      loading.classList.add('hidden');
+      if (!json.success || !json.data) {
+        errorState.classList.remove('hidden');
+        return;
+      }
+
+      var s = json.data;
+      titleEl.value = s.title || '';
+      genreEl.value = s.genre || '';
+      synopsisEl.value = s.synopsis || '';
+      worldEl.value = s.worldSetting || '';
+
+      formContainer.classList.remove('hidden');
+
+      // Save button handler
+      btn.addEventListener('click', async function () {
+        var title = titleEl.value.trim();
+        var genre = genreEl.value.trim();
+        var synopsis = synopsisEl.value.trim();
+        var worldSetting = worldEl.value.trim();
+
+        if (!title) {
+          setStatus('제목을 입력하세요', true);
+          return;
+        }
+
+        btn.disabled = true;
+        setStatus('저장 중...', false);
+
+        try {
+          var res = await fetch('/api/master-scripts/' + SCRIPT_ID, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: title,
+              genre: genre || null,
+              synopsis: synopsis || null,
+              worldSetting: worldSetting || null,
+            }),
+          });
+
+          var json = await res.json();
+
+          if (json.success) {
+            setStatus('저장되었습니다', false);
+            setTimeout(function () {
+              window.location.href = '/scripts/' + SCRIPT_ID;
+            }, 1000);
+          } else {
+            setStatus('저장 실패: ' + (json.error || 'Unknown error'), true);
+            btn.disabled = false;
+          }
+        } catch (err) {
+          setStatus('오류: ' + (err instanceof Error ? err.message : String(err)), true);
+          btn.disabled = false;
+        }
+      });
+    })
+    .catch(function (err) {
+      console.error('대본 데이터 로드 실패:', err);
+      loading.classList.add('hidden');
+      errorState.classList.remove('hidden');
+    });
+}());
+</script>

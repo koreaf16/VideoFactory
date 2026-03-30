@@ -2,6 +2,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
     <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">마스터 대본</h2>
+    <a href="/scripts/new" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition inline-block">+ 입력</a>
   </div>
 
   <!-- 로딩 -->
@@ -32,12 +33,12 @@
   }
 
   function buildCard(script) {
-    var status = script.STATUS || 'draft';
+    var status = script.status || 'draft';
     var colorClass = statusColors[status] || 'bg-gray-500/20 text-gray-400';
     var label = statusLabels[status] || status;
 
     var a = document.createElement('a');
-    a.href = '/scripts/' + script.SCRIPT_ID;
+    a.href = '/scripts/' + script.scriptId;
     a.className = 'block bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-5 hover:border-[#7c3aed]/50 transition cursor-pointer';
 
     // Header row: title + badge
@@ -46,7 +47,7 @@
 
     var title = document.createElement('h3');
     title.className = 'text-base font-semibold text-[#e5e1e4] leading-snug';
-    title.textContent = script.TITLE || '(제목 없음)';
+    title.textContent = script.title || '(제목 없음)';
     header.appendChild(title);
 
     var badge = document.createElement('span');
@@ -59,13 +60,13 @@
     // Genre
     var genre = document.createElement('p');
     genre.className = 'text-xs text-[#958da1] mb-3';
-    genre.textContent = script.GENRE ? '장르: ' + script.GENRE : '장르: --';
+    genre.textContent = script.genre ? '장르: ' + script.genre : '장르: --';
     a.appendChild(genre);
 
     // Footer: created date
     var footer = document.createElement('div');
     footer.className = 'text-[11px] text-[#ccc3d8]/40 mt-2';
-    footer.textContent = '생성일: ' + formatDate(script.CREATED_AT);
+    footer.textContent = '생성일: ' + formatDate(script.createdAt);
     a.appendChild(footer);
 
     return a;
