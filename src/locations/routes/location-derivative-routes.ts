@@ -5,28 +5,12 @@
  * @author AI Video Factory
  */
 
-import fs from 'fs';
-import path from 'path';
 import { Router, Request, Response } from 'express';
-import oracledb from 'oracledb';
-import { asyncHandler } from '../../common/middleware/async-handler';
-import { getConnection } from '../../db/connection';
 import {
   getLocDerivJob,
   locDerivEvents,
   stopLocDerivGeneration,
 } from '../services/location-derivative-generator';
-import { LIST_LOC_REF_IMAGES } from '../../db/queries/location-candidate-queries';
-import type { LocRefImageRow } from '../../db/queries/location-candidate-queries';
-import { FIND_LOCATION_BY_ID } from '../../db/queries/location-queries';
-import type { LocationRow } from '../../db/queries/location-queries';
-import { getPresetByAngle } from '../services/location-presets';
-import { getMapPaths } from '../services/blender-renderer';
-import { comfyuiClient } from '../../comfyui/client';
-import { buildControlNetDerivativeWorkflow } from '../../comfyui/workflows/controlnet-workflows';
-import { config } from '../../config';
-import { ensureDir, writeFileBuffer } from '../../common/utils/file-utils';
-import { createThumbnail } from '../../common/utils/image-utils';
 
 const router = Router();
 
@@ -81,37 +65,40 @@ router.post(
 
 // ─── 갤러리 API ──────────────────────────────────────────
 
-router.get(
-  '/:locationId/ref-images',
-  asyncHandler(async (req: Request, res: Response) => {
-    const locationId = String(req.params.locationId);
-    const conn = await getConnection();
-    try {
-      const result = await conn.execute<LocRefImageRow>(
-        LIST_LOC_REF_IMAGES,
-        { locationId },
-        { outFormat: oracledb.OUT_FORMAT_OBJECT },
-      );
-      const rows = result.rows ?? [];
-      res.json({
-        success: true,
-        data: rows.map((r) => ({
-          refId: r.REF_ID,
-          locationId: r.LOCATION_ID,
-          imageUrl: `/api/images/location_ref_images/${r.REF_ID}`,
-          angle: r.ANGLE,
-          approved: r.APPROVED === 1,
-          createdAt: r.CREATED_AT,
-        })),
-      });
-    } finally {
-      await conn.close();
-    }
-  }),
-);
+// TODO: Migrate ref-images endpoint to anchor_images table
+// router.get(
+//   '/:locationId/ref-images',
+//   asyncHandler(async (req: Request, res: Response) => {
+//     const locationId = String(req.params.locationId);
+//     const conn = await getConnection();
+//     try {
+//       const result = await conn.execute<LocRefImageRow>(
+//         LIST_LOC_REF_IMAGES,
+//         { locationId },
+//         { outFormat: oracledb.OUT_FORMAT_OBJECT },
+//       );
+//       const rows = result.rows ?? [];
+//       res.json({
+//         success: true,
+//         data: rows.map((r) => ({
+//           refId: r.REF_ID,
+//           locationId: r.LOCATION_ID,
+//           imageUrl: `/api/images/location_ref_images/${r.REF_ID}`,
+//           angle: r.ANGLE,
+//           approved: r.APPROVED === 1,
+//           createdAt: r.CREATED_AT,
+//         })),
+//       });
+//     } finally {
+//       await conn.close();
+//     }
+//   }),
+// );
 
 // ─── 재생성 API ──────────────────────────────────────────
+// TODO: Migrate regenerate endpoint to anchor_images table
 
+/*
 router.post(
   '/ref-images/:refId/regenerate',
   asyncHandler(async (req: Request, res: Response) => {
@@ -227,5 +214,6 @@ router.post(
     }
   }),
 );
+*/
 
 export default router;

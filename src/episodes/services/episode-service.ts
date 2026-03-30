@@ -79,12 +79,13 @@ export async function createEpisode(
       false,
     );
 
-    for (const scene of req.scenes) {
+    for (let idx = 0; idx < req.scenes.length; idx++) {
+      const scene = req.scenes[idx];
       const sceneId = await insertScene(
         conn,
         {
           epId,
-          sceneOrder: scene.sceneOrder,
+          sceneOrder: scene.sceneOrder ?? idx + 1,
           description: scene.description ?? null,
           locationId: scene.locationId ?? null,
           timeOfDay: scene.timeOfDay ?? null,

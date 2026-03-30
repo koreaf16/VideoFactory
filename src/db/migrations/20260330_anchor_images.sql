@@ -40,7 +40,7 @@ CREATE TABLE anchor_images (
 
   -- Face info (for character entities)
   face_bbox       VARCHAR2(200),
-  face_embedding  VECTOR(384, FLOAT32),
+  face_embedding_json VARCHAR2(4000),
 
   -- Timestamps
   created_at      TIMESTAMP DEFAULT SYSTIMESTAMP,
@@ -52,7 +52,10 @@ CREATE TABLE anchor_images (
 
 -- 3. Create indexes
 CREATE INDEX idx_anchor_entity ON anchor_images(entity_type, entity_id);
+/
+
 CREATE INDEX idx_anchor_job ON anchor_images(job_id);
+/
 
 -- 4. Modify characters table
 -- Step 4a: Drop face_embedding and anchor columns if they exist

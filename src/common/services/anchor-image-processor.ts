@@ -131,20 +131,24 @@ export async function processOneAnchor(
   let faceBbox: string | null = null;
 
   try {
-    const [scoreResult, bboxResult] = await Promise.all([
+    const [scoreResult, bboxResult] = await Promise.all<
+      { success: boolean; data?: { score: number } } | { success: boolean; data?: unknown }
+    >([
       scoreImage(imagePath),
-      entityType === 'character' ? getFaceBoundingBox(imagePath) : Promise.resolve({ success: false }),
+      entityType === 'character'
+        ? getFaceBoundingBox(imagePath)
+        : Promise.resolve({ success: false } as const),
     ]);
 
     let qualityScore: number | null = null;
     let grade: string | null = null;
 
-    if (scoreResult.success && scoreResult.data) {
+    if (scoreResult.success && scoreResult.data !== undefined) {
       qualityScore = scoreResult.data.score;
       grade = assignGrade(scoreResult.data.score);
     }
 
-    if (bboxResult.success && bboxResult.data) {
+    if (bboxResult.success && bboxResult.data !== undefined) {
       faceBbox = JSON.stringify(bboxResult.data);
       logger.debug('얼굴 좌표 추출 완료', { jobId: job.jobId, bbox: faceBbox });
     }
@@ -175,8 +179,8 @@ export async function processOneAnchor(
         thumbnailUrl: `/api/images/anchors/${anchorId}?thumbnail=true`,
         prompt,
         seed,
-        qualityScore,
-        grade,
+        qualityScore: qualityScore ?? undefined,
+        grade: grade ?? undefined,
       });
     } finally {
       await conn.close();

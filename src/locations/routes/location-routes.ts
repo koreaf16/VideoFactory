@@ -7,7 +7,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import locationCandidateRoutes from './location-candidate-routes';
+// import locationCandidateRoutes from './location-candidate-routes';
 import locationDerivativeRoutes from './location-derivative-routes';
 import locationLoraRoutes from './location-lora-routes';
 import locationSkeletonRoutes from './location-skeleton-routes';
@@ -19,10 +19,10 @@ import {
   insertLocation,
   deleteLocation,
 } from '../../db/queries/location-queries';
-import {
-  getLatestLocJob,
-  countLocRefImages,
-} from '../../db/queries/location-candidate-queries';
+// import {
+//   getLatestLocJob,
+//   countLocRefImages,
+// } from '../../db/queries/location-candidate-queries';
 
 const router = Router();
 
@@ -34,18 +34,8 @@ router.get(
     const conn = await getConnection();
     try {
       const rows = await listLocations(conn);
-      const withMeta = await Promise.all(
-        rows.map(async (r) => {
-          const latestJobId = await getLatestLocJob(conn, r.LOCATION_ID);
-          const refImageCount = await countLocRefImages(conn, r.LOCATION_ID);
-          return {
-            ...r,
-            LATEST_JOB_ID: latestJobId,
-            REF_IMAGE_COUNT: refImageCount,
-          };
-        }),
-      );
-      res.json({ success: true, data: withMeta });
+      // TODO: Add metadata like LATEST_JOB_ID and REF_IMAGE_COUNT from anchor_images
+      res.json({ success: true, data: rows });
     } finally {
       await conn.close();
     }
@@ -121,7 +111,7 @@ router.delete(
   }),
 );
 
-router.use('/', locationCandidateRoutes);
+// router.use('/', locationCandidateRoutes); // TODO: Migrate to anchor routes
 router.use('/', locationDerivativeRoutes);
 router.use('/', locationLoraRoutes);
 router.use('/', locationSkeletonRoutes);
