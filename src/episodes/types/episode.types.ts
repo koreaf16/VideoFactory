@@ -59,6 +59,7 @@ export interface Scene {
   readonly emotion?: string;
   readonly durationSec?: number;
   readonly script?: SceneScript;
+  readonly characters?: Array<{ charId: string; name: string }>;
   readonly promptEn?: string;
   readonly motionPrompt?: string;
   readonly status: string;
@@ -89,4 +90,27 @@ export interface EpisodeGenerateRequest {
   readonly epNumber: number;
   readonly epType?: string;
   readonly characters?: string[];
+}
+
+export interface CreateSceneInput {
+  readonly sceneOrder: number;
+  readonly description?: string;
+  readonly locationId?: string;
+  readonly characters?: string[];
+  readonly timeOfDay?: string;
+  readonly cameraType?: string;
+  readonly emotion?: string;
+  readonly durationSec?: number;
+  readonly script?: SceneScript;
+  readonly promptEn?: string;
+  readonly motionPrompt?: string;
+}
+
+export interface CreateEpisodeRequest {
+  readonly epNumber: number;
+  readonly title: string;
+  readonly synopsis?: string;
+  readonly epType?: string;
+  readonly decisionReasoning?: string;
+  readonly scenes: CreateSceneInput[];
 }
