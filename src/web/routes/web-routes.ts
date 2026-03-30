@@ -71,8 +71,22 @@ router.get('/episodes', (_req: Request, res: Response) => {
   res.render('episodes/list', { title: '에피소드 목록' });
 });
 
+router.get('/episodes/new', (_req: Request, res: Response) => {
+  res.render('episodes/create', { title: '새 에피소드' });
+});
+
 router.get('/episodes/:epId/edit', (req: Request, res: Response) => {
   res.render('episodes/editor', { title: '대본 편집', epId: req.params.epId });
+});
+
+// ─── 마스터 대본 ───────────────────────────────────────────
+
+router.get('/scripts', (_req: Request, res: Response) => {
+  res.render('scripts/list', { title: '마스터 대본' });
+});
+
+router.get('/scripts/:scriptId', (req: Request, res: Response) => {
+  res.render('scripts/detail', { title: '대본 상세', scriptId: req.params.scriptId });
 });
 
 // ─── 영상 생성 큐 ───────────────────────────────────────────

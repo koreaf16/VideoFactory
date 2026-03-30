@@ -2,7 +2,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
     <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">에피소드 관리</h2>
-    <button class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
+    <button id="btn-create-episode" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
       새 에피소드 생성
     </button>
@@ -15,6 +15,14 @@
     <button data-filter="approved" class="px-4 py-2 text-sm rounded-md text-[#ccc3d8] hover:bg-[#2a2a2c] transition">승인됨</button>
     <button data-filter="generating" class="px-4 py-2 text-sm rounded-md text-[#ccc3d8] hover:bg-[#2a2a2c] transition">생성 중</button>
     <button data-filter="completed" class="px-4 py-2 text-sm rounded-md text-[#ccc3d8] hover:bg-[#2a2a2c] transition">완료</button>
+  </div>
+
+  <!-- 대본 필터 -->
+  <div class="flex items-center gap-3 mb-5">
+    <label for="script-filter" class="text-sm text-[#ccc3d8] shrink-0">대본 필터:</label>
+    <select id="script-filter" class="bg-[#1b1b1d] border border-[#2a2a2c] text-sm text-[#e5e1e4] rounded-lg px-3 py-2 focus:outline-none focus:border-[#7c3aed] transition min-w-[180px]">
+      <option value="">전체</option>
+    </select>
   </div>
 
   <!-- 에피소드 테이블 -->
@@ -49,6 +57,7 @@
 
   var allEpisodes = [];
   var currentFilter = 'all';
+  var currentScriptId = '';
 
   function formatDate(dateStr) {
     if (!dateStr) return '--';
@@ -166,17 +175,53 @@
     });
   });
 
-  fetch('/api/episodes/')
+  document.getElementById('btn-create-episode').addEventListener('click', function () {
+    window.location.href = '/episodes/new';
+  });
+
+  function loadEpisodes(scriptId) {
+    var url = '/api/episodes/';
+    if (scriptId) { url += '?scriptId=' + encodeURIComponent(scriptId); }
+    fetch(url)
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        if (json.success && Array.isArray(json.data)) {
+          allEpisodes = json.data;
+        } else {
+          allEpisodes = [];
+        }
+        renderTable(currentFilter);
+      })
+      .catch(function (err) {
+        console.error('에피소드 목록 로드 실패:', err);
+        allEpisodes = [];
+        renderTable(currentFilter);
+      });
+  }
+
+  document.getElementById('script-filter').addEventListener('change', function () {
+    currentScriptId = this.value;
+    loadEpisodes(currentScriptId);
+  });
+
+  // Load master scripts into dropdown
+  fetch('/api/master-scripts')
     .then(function (res) { return res.json(); })
     .then(function (json) {
       if (json.success && Array.isArray(json.data)) {
-        allEpisodes = json.data;
+        var select = document.getElementById('script-filter');
+        json.data.forEach(function (s) {
+          var opt = document.createElement('option');
+          opt.value = String(s.SCRIPT_ID);
+          opt.textContent = s.TITLE || '(제목 없음)';
+          select.appendChild(opt);
+        });
       }
-      renderTable(currentFilter);
     })
     .catch(function (err) {
-      console.error('에피소드 목록 로드 실패:', err);
-      renderTable(currentFilter);
+      console.error('대본 목록 로드 실패:', err);
     });
+
+  loadEpisodes(currentScriptId);
 }());
 </script>

@@ -1,0 +1,95 @@
+<div>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">마스터 대본</h2>
+  </div>
+
+  <!-- 로딩 -->
+  <div id="loading" class="text-center py-20 text-[#ccc3d8]">불러오는 중...</div>
+
+  <!-- 카드 그리드 -->
+  <div id="script-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 hidden"></div>
+
+  <!-- 빈 상태 -->
+  <div id="empty-state" class="text-center py-20 text-[#ccc3d8] hidden">
+    등록된 대본이 없습니다. Claude CLI로 생성하세요.
+  </div>
+</div>
+
+<script>
+(function () {
+  var statusLabels = { draft: '초안', active: '활성', completed: '완료', archived: '보관됨' };
+  var statusColors = {
+    draft: 'bg-yellow-500/20 text-yellow-400',
+    active: 'bg-green-500/20 text-green-400',
+    completed: 'bg-blue-500/20 text-blue-400',
+    archived: 'bg-gray-500/20 text-gray-400',
+  };
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '--';
+    return String(dateStr).slice(0, 10);
+  }
+
+  function buildCard(script) {
+    var status = script.STATUS || 'draft';
+    var colorClass = statusColors[status] || 'bg-gray-500/20 text-gray-400';
+    var label = statusLabels[status] || status;
+
+    var a = document.createElement('a');
+    a.href = '/scripts/' + script.SCRIPT_ID;
+    a.className = 'block bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-5 hover:border-[#7c3aed]/50 transition cursor-pointer';
+
+    // Header row: title + badge
+    var header = document.createElement('div');
+    header.className = 'flex items-start justify-between gap-3 mb-3';
+
+    var title = document.createElement('h3');
+    title.className = 'text-base font-semibold text-[#e5e1e4] leading-snug';
+    title.textContent = script.TITLE || '(제목 없음)';
+    header.appendChild(title);
+
+    var badge = document.createElement('span');
+    badge.className = 'shrink-0 inline-flex items-center text-[10px] font-semibold px-2.5 py-1 rounded-full ' + colorClass;
+    badge.textContent = label;
+    header.appendChild(badge);
+
+    a.appendChild(header);
+
+    // Genre
+    var genre = document.createElement('p');
+    genre.className = 'text-xs text-[#958da1] mb-3';
+    genre.textContent = script.GENRE ? '장르: ' + script.GENRE : '장르: --';
+    a.appendChild(genre);
+
+    // Footer: created date
+    var footer = document.createElement('div');
+    footer.className = 'text-[11px] text-[#ccc3d8]/40 mt-2';
+    footer.textContent = '생성일: ' + formatDate(script.CREATED_AT);
+    a.appendChild(footer);
+
+    return a;
+  }
+
+  fetch('/api/master-scripts')
+    .then(function (res) { return res.json(); })
+    .then(function (json) {
+      document.getElementById('loading').classList.add('hidden');
+      var scripts = (json.success && Array.isArray(json.data)) ? json.data : [];
+      if (scripts.length === 0) {
+        document.getElementById('empty-state').classList.remove('hidden');
+        return;
+      }
+      var grid = document.getElementById('script-grid');
+      scripts.forEach(function (s) {
+        grid.appendChild(buildCard(s));
+      });
+      grid.classList.remove('hidden');
+    })
+    .catch(function (err) {
+      console.error('대본 목록 로드 실패:', err);
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('empty-state').classList.remove('hidden');
+    });
+}());
+</script>
