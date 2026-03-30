@@ -55,6 +55,18 @@ export const APPROVE = `
    WHERE ep_id = :epId
 `;
 
+export const UPDATE_EPISODE = `
+  UPDATE episodes
+     SET title              = :title,
+         synopsis           = :synopsis,
+         decision_reasoning = :decisionReasoning
+   WHERE ep_id = :epId
+`;
+
+export const FIND_BY_EP_NUMBER = `
+  SELECT ep_id FROM episodes WHERE ep_number = :epNumber
+`;
+
 // ─── 타입 정의 ──────────────────────────────────────────
 
 interface EpisodeRow {
@@ -83,30 +95,37 @@ interface EpisodeInsertData {
 
 export async function findEpisodeById(
   conn: oracledb.Connection,
-  epId: number
+  epId: number,
 ): Promise<EpisodeRow | undefined> {
-  const result = await conn.execute<EpisodeRow>(FIND_BY_ID, { epId }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+  const result = await conn.execute<EpisodeRow>(
+    FIND_BY_ID,
+    { epId },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT },
+  );
   logger.debug('에피소드 조회', { epId, found: (result.rows?.length ?? 0) > 0 });
   return result.rows?.[0];
 }
 
-export async function listEpisodes(
-  conn: oracledb.Connection
-): Promise<EpisodeRow[]> {
-  const result = await conn.execute<EpisodeRow>(LIST_ALL, {}, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+export async function listEpisodes(conn: oracledb.Connection): Promise<EpisodeRow[]> {
+  const result = await conn.execute<EpisodeRow>(
+    LIST_ALL,
+    {},
+    { outFormat: oracledb.OUT_FORMAT_OBJECT },
+  );
   logger.debug('에피소드 목록 조회', { count: result.rows?.length ?? 0 });
   return result.rows ?? [];
 }
 
 export async function insertEpisode(
   conn: oracledb.Connection,
-  data: EpisodeInsertData
+  data: EpisodeInsertData,
+  autoCommit = true,
 ): Promise<number> {
   const bindVars = {
     ...data,
     epId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
   };
-  const result = await conn.execute(INSERT, bindVars, { autoCommit: true });
+  const result = await conn.execute(INSERT, bindVars, { autoCommit });
   const newId = (result.outBinds as { epId: number[] }).epId[0];
   logger.info('에피소드 생성', { epId: newId, epNumber: data.epNumber });
   return newId;
@@ -115,16 +134,34 @@ export async function insertEpisode(
 export async function updateEpisodeStatus(
   conn: oracledb.Connection,
   epId: number,
-  status: string
+  status: string,
 ): Promise<void> {
   await conn.execute(UPDATE_STATUS, { epId, status }, { autoCommit: true });
   logger.info('에피소드 상태 변경', { epId, status });
 }
 
-export async function approveEpisode(
-  conn: oracledb.Connection,
-  epId: number
-): Promise<void> {
+export async function approveEpisode(conn: oracledb.Connection, epId: number): Promise<void> {
   await conn.execute(APPROVE, { epId }, { autoCommit: true });
   logger.info('에피소드 승인', { epId });
+}
+
+export async function updateEpisode(
+  conn: oracledb.Connection,
+  epId: number,
+  data: { title: string | null; synopsis: string | null; decisionReasoning: string | null },
+): Promise<void> {
+  await conn.execute(UPDATE_EPISODE, { epId, ...data }, { autoCommit: true });
+  logger.info('에피소드 수정', { epId });
+}
+
+export async function findByEpNumber(
+  conn: oracledb.Connection,
+  epNumber: number,
+): Promise<boolean> {
+  const result = await conn.execute<{ EP_ID: number }>(
+    FIND_BY_EP_NUMBER,
+    { epNumber },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT },
+  );
+  return (result.rows?.length ?? 0) > 0;
 }
