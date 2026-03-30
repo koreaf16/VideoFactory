@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from routers import (
+    blender_router,
     embedding_router,
     health_router,
     quality_router,
@@ -49,6 +50,7 @@ app.include_router(script_router.router, prefix="/api/script", tags=["script"])
 app.include_router(embedding_router.router, prefix="/api/embedding", tags=["embedding"])
 app.include_router(tts_router.router, prefix="/api/tts", tags=["tts"])
 app.include_router(quality_router.router, prefix="/api/quality", tags=["quality"])
+app.include_router(blender_router.router, prefix="/api/blender", tags=["blender"])
 
 
 @app.on_event("startup")
