@@ -195,6 +195,6 @@ export async function listEpisodesByScript(
 }
 
 export async function deleteEpisode(conn: oracledb.Connection, epId: number): Promise<void> {
-  await conn.execute(DELETE_EPISODE, { epId }, { autoCommit: true });
+  await conn.execute(DELETE_EPISODE, { epId }, { autoCommit: false });
   logger.info('에피소드 삭제', { epId });
 }

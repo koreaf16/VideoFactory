@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 /**
  * @module 씬 쿼리
  * @description scenes 테이블에 대한 모든 SQL 쿼리를 정의한다.
@@ -82,6 +83,18 @@ export const UPDATE_SCENE = `
          prompt_en     = :promptEn,
          motion_prompt = :motionPrompt
    WHERE scene_id = :sceneId
+`;
+
+export const DELETE_SCENE_CHARACTERS_BY_EPISODE = `
+  DELETE FROM scene_characters
+   WHERE scene_id IN (
+     SELECT scene_id FROM scenes WHERE ep_id = :epId
+   )
+`;
+
+export const DELETE_SCENES_BY_EPISODE = `
+  DELETE FROM scenes
+   WHERE ep_id = :epId
 `;
 
 // ─── 타입 정의 ──────────────────────────────────────────
@@ -219,4 +232,18 @@ export async function updateScene(
 ): Promise<void> {
   await conn.execute(UPDATE_SCENE, { sceneId, ...data }, { autoCommit: true });
   logger.info('씬 수정', { sceneId });
+}
+
+export async function deleteSceneCharactersByEpisode(
+  conn: oracledb.Connection,
+  epId: number,
+): Promise<void> {
+  await conn.execute(DELETE_SCENE_CHARACTERS_BY_EPISODE, { epId }, { autoCommit: false });
+}
+
+export async function deleteScenesByEpisode(
+  conn: oracledb.Connection,
+  epId: number,
+): Promise<void> {
+  await conn.execute(DELETE_SCENES_BY_EPISODE, { epId }, { autoCommit: false });
 }

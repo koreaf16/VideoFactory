@@ -26,6 +26,8 @@ import {
   findCharactersByScene,
   insertSceneCharacter,
   updateScene as updateSceneQuery,
+  deleteSceneCharactersByEpisode,
+  deleteScenesByEpisode,
 } from '../../db/queries/scene-queries';
 import { logger } from '../../common/logger';
 import type {
@@ -53,6 +55,7 @@ function parseScript(raw: string | null): SceneScript | null {
  * 에피소드와 하위 씬을 트랜잭션으로 일괄 생성한다.
  * 중간에 오류 발생 시 롤백한다.
  */
+// eslint-disable-next-line max-lines-per-function
 export async function createEpisode(
   req: CreateEpisodeRequest,
 ): Promise<{ epId: number; sceneCount: number }> {
@@ -219,7 +222,10 @@ export async function approveEpisode(epId: number): Promise<void> {
 
 // ─── 에피소드 삭제 ──────────────────────────────────────────
 
-/** 에피소드를 삭제한다. draft 상태에서만 가능. */
+/**
+ * 에피소드와 하위 씬을 함께 삭제한다. draft 상태에서만 가능.
+ * 트랜잭션: scene_characters → scenes → episodes 순으로 삭제
+ */
 export async function deleteEpisode(epId: number): Promise<void> {
   const conn = await getConnection();
   try {
@@ -228,8 +234,17 @@ export async function deleteEpisode(epId: number): Promise<void> {
     if (ep.STATUS !== 'draft') {
       throw new Error(`삭제 불가 상태입니다: ${ep.STATUS} (허용: draft만)`);
     }
+
+    // 트랜잭션: scene_characters → scenes → episodes 순으로 삭제
+    await deleteSceneCharactersByEpisode(conn, epId);
+    await deleteScenesByEpisode(conn, epId);
     await deleteEpisodeQuery(conn, epId);
+
+    await conn.commit();
     logger.info('에피소드 삭제 완료', { epId, epNumber: ep.EP_NUMBER });
+  } catch (err) {
+    await conn.rollback();
+    throw err;
   } finally {
     await conn.close();
   }
