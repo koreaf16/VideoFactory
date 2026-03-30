@@ -18,6 +18,16 @@ import oracledb from 'oracledb';
 import { config } from '../config';
 import { logger } from '../common/logger';
 
+// CLOB → String 자동 변환 (모듈 로드 시 1회)
+oracledb.fetchTypeHandler = function (
+  metaData: oracledb.Metadata,
+): oracledb.FetchTypeResponse | undefined {
+  if (metaData.dbType === oracledb.DB_TYPE_CLOB) {
+    return { type: oracledb.STRING };
+  }
+  return undefined;
+};
+
 // Oracle Instant Client 초기화 (모듈 로드 시 1회)
 try {
   oracledb.initOracleClient({ libDir: config.oracle.instantClientPath });

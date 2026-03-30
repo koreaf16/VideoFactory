@@ -16,14 +16,14 @@ import {
   locDerivEvents,
   stopLocDerivGeneration,
 } from '../services/location-derivative-generator';
-import {
-  LIST_LOC_REF_IMAGES,
-  GET_LOC_ANCHOR_PATH,
-} from '../../db/queries/location-candidate-queries';
+import { LIST_LOC_REF_IMAGES } from '../../db/queries/location-candidate-queries';
 import type { LocRefImageRow } from '../../db/queries/location-candidate-queries';
-import { LOCATION_PRESETS } from '../services/location-presets';
+import { FIND_LOCATION_BY_ID } from '../../db/queries/location-queries';
+import type { LocationRow } from '../../db/queries/location-queries';
+import { getPresetByAngle } from '../services/location-presets';
+import { getMapPaths } from '../services/blender-renderer';
 import { comfyuiClient } from '../../comfyui/client';
-import { buildKontextEditWorkflow } from '../../comfyui/workflows/kontext-workflows';
+import { buildControlNetDerivativeWorkflow } from '../../comfyui/workflows/controlnet-workflows';
 import { config } from '../../config';
 import { ensureDir, writeFileBuffer } from '../../common/utils/file-utils';
 import { createThumbnail } from '../../common/utils/image-utils';
@@ -131,20 +131,29 @@ router.post(
         return;
       }
 
-      const anchorR = await conn.execute<{ IMAGE_PATH: string }>(
-        GET_LOC_ANCHOR_PATH,
+      // Fetch location for promptBase
+      const locR = await conn.execute<LocationRow>(
+        FIND_LOCATION_BY_ID,
         { locationId: ref.LOCATION_ID },
         { outFormat: oracledb.OUT_FORMAT_OBJECT },
       );
-      const anchorPath = anchorR.rows?.[0]?.IMAGE_PATH;
-      if (!anchorPath) {
-        res.status(400).json({ success: false, error: '앵커 없음' });
+      const loc = locR.rows?.[0];
+      const promptBase = loc?.PROMPT_BASE ?? '';
+
+      const preset = ref.ANGLE ? getPresetByAngle(ref.ANGLE) : undefined;
+      if (!preset) {
+        res.status(400).json({ success: false, error: '프리셋 없음' });
         return;
       }
 
-      const preset = LOCATION_PRESETS.find((p) => p.angle === ref.ANGLE);
-      if (!preset) {
-        res.status(400).json({ success: false, error: '프리셋 없음' });
+      // Find depth/normal maps for this camera
+      const { depthMaps, normalMaps } = getMapPaths(ref.LOCATION_ID);
+      const depthFile = depthMaps.find((f) => path.basename(f, '.png') === preset.cameraId);
+      const normalFile = normalMaps.find((f) => path.basename(f, '.png') === preset.cameraId);
+      if (!depthFile) {
+        res
+          .status(400)
+          .json({ success: false, error: 'depth map 없음. Phase 1을 먼저 실행하세요.' });
         return;
       }
 
@@ -155,16 +164,33 @@ router.post(
       );
       if (fs.existsSync(thumbP)) fs.unlinkSync(thumbP);
 
-      const editPrompt = modifyPrompt
-        ? `${preset.regenHint} Additionally: ${modifyPrompt}`
-        : preset.regenHint;
-
       const seed = Math.floor(Math.random() * 999999999);
+
+      // Upload depth/normal maps to ComfyUI
       await comfyuiClient.connect();
-      const anchorName = await comfyuiClient.uploadImage(anchorPath);
-      const wf = buildKontextEditWorkflow({
-        anchorImageName: anchorName,
-        editPrompt,
+      const depthName = await comfyuiClient.uploadImage(depthFile);
+      const normalName = normalFile ? await comfyuiClient.uploadImage(normalFile) : depthName;
+
+      // Get style anchor
+      const styleAnchorPath = path.join('uploads/locations', ref.LOCATION_ID, 'style_anchor.png');
+      if (!fs.existsSync(styleAnchorPath)) {
+        res
+          .status(400)
+          .json({ success: false, error: 'style_anchor.png 없음. 앵커를 먼저 선택하세요.' });
+        return;
+      }
+      const styleAnchorName = await comfyuiClient.uploadImage(styleAnchorPath);
+
+      // Build prompt with regeneration hint
+      const regenPrompt = modifyPrompt
+        ? `${promptBase}, ${preset.regenHint}, ${modifyPrompt}`
+        : `${promptBase}, ${preset.regenHint}`;
+
+      const wf = buildControlNetDerivativeWorkflow({
+        depthMapName: depthName,
+        normalMapName: normalName,
+        styleAnchorName,
+        prompt: regenPrompt,
         seed,
         filenamePrefix: `${ref.LOCATION_ID}_${preset.angle}_${seed}`,
       });
