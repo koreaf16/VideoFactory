@@ -114,3 +114,34 @@ export interface CreateEpisodeRequest {
   readonly decisionReasoning?: string;
   readonly scenes: CreateSceneInput[];
 }
+
+// ─── 서비스 응답 타입 ───────────────────────────────────────
+
+export interface SceneDetail {
+  readonly sceneId: number;
+  readonly sceneOrder: number;
+  readonly description: string | null;
+  readonly locationId: string | null;
+  readonly timeOfDay: string | null;
+  readonly cameraType: string | null;
+  readonly emotion: string | null;
+  readonly durationSec: number | null;
+  readonly script: SceneScript | null;
+  readonly promptEn: string | null;
+  readonly motionPrompt: string | null;
+  readonly status: string;
+  readonly characters: Array<{ charId: string; name: string }>;
+}
+
+export interface EpisodeDetail {
+  readonly epId: number;
+  readonly epNumber: number;
+  readonly title: string | null;
+  readonly synopsis: string | null;
+  readonly epType: string;
+  readonly status: string;
+  readonly createdAt: Date;
+  readonly approvedAt: Date | null;
+  readonly publishedAt: Date | null;
+  readonly scenes: SceneDetail[];
+}
