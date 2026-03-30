@@ -17,6 +17,28 @@
   <!-- 빈 상태 -->
   <div id="empty-state" class="text-center py-20 text-[#ccc3d8] hidden">등록된 장소가 없습니다.</div>
 
+  <!-- 후보 생성 모달 -->
+  <div id="gen-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden">
+    <div class="bg-[#2a2a2c] rounded-xl p-6 w-[24rem] shadow-xl">
+      <h3 class="text-lg font-semibold text-[#e5e1e4] mb-4">배경 후보 생성</h3>
+      <p id="gen-modal-loc-name" class="text-xs text-[#958da1] mb-4"></p>
+
+      <div class="mb-4">
+        <label class="block text-sm text-[#ccc3d8] mb-1">생성 개수</label>
+        <input id="gen-count" type="number" value="30" min="1" max="100" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm text-[#ccc3d8] mb-1">커스텀 프롬프트 (선택)</label>
+        <textarea id="gen-prompt" rows="3" placeholder="비워두면 장소 기본 프롬프트 사용" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] placeholder-[#958da1] focus:outline-none focus:border-[#7c3aed] resize-none"></textarea>
+      </div>
+
+      <div class="flex gap-3 justify-end">
+        <button id="gen-cancel" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition">취소</button>
+        <button id="gen-submit" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-4 py-2 rounded-lg transition">생성 시작</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 등록 모달 -->
   <div id="add-modal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden">
     <div class="bg-[#2a2a2c] rounded-xl p-6 w-[28rem] shadow-xl max-h-[90vh] overflow-y-auto">
@@ -44,11 +66,14 @@
       </div>
       <div class="mb-3">
         <label class="block text-sm text-[#ccc3d8] mb-1">기본 프롬프트</label>
-        <textarea id="modal-prompt" rows="4" placeholder="empty room, no people, ..." class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] placeholder-[#958da1] focus:outline-none focus:border-[#7c3aed] resize-none"></textarea>
+        <textarea id="modal-prompt" rows="4" placeholder="영어로 작성 (예: outdoor rooftop terrace, city skyline view, modern railing)" class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] placeholder-[#958da1] focus:outline-none focus:border-[#7c3aed] resize-none"></textarea>
+        <p class="text-xs text-[#958da1] mt-1">Flux 모델은 영어 프롬프트만 인식합니다</p>
       </div>
       <div class="mb-4">
-        <label class="block text-sm text-[#ccc3d8] mb-1">설명 (선택)</label>
-        <textarea id="modal-desc" rows="2" placeholder="장소에 대한 설명..." class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] placeholder-[#958da1] focus:outline-none focus:border-[#7c3aed] resize-none"></textarea>
+        <label class="block text-xs text-on-surface-var mb-1">3D 공간 설명 (블렌더용)</label>
+        <textarea id="modal-desc" rows="3"
+          class="w-full bg-[#353437] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-on-surface focus:border-[#7c3aed] focus:outline-none resize-none"
+          placeholder="예: 가로 8m × 세로 6m × 높이 3m. 책상 5열 × 6행, 정면에 칠판..."></textarea>
       </div>
 
       <div class="flex gap-3 justify-end">
@@ -59,6 +84,7 @@
   </div>
 </div>
 
+<script src="/js/characters.js"></script>
 <script>
 (function() {
   var grid = document.getElementById('loc-grid');
@@ -96,8 +122,17 @@
     card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden group';
 
     var thumbArea = document.createElement('div');
-    thumbArea.className = 'aspect-[4/3] bg-[#353437] flex items-center justify-center';
-    thumbArea.appendChild(createHomeSvg());
+    thumbArea.className = 'aspect-[4/3] bg-[#353437] flex items-center justify-center overflow-hidden';
+    if (loc.ANCHOR_PATH) {
+      var thumbImg = document.createElement('img');
+      thumbImg.src = thumbUrl(loc.ANCHOR_PATH);
+      thumbImg.alt = loc.NAME;
+      thumbImg.className = 'w-full h-full object-cover';
+      thumbImg.loading = 'lazy';
+      thumbArea.appendChild(thumbImg);
+    } else {
+      thumbArea.appendChild(createHomeSvg());
+    }
     card.appendChild(thumbArea);
 
     var body = document.createElement('div');
@@ -135,35 +170,23 @@
     var genBtn = document.createElement('button');
     genBtn.className = 'flex-1 bg-[#7c3aed]/20 hover:bg-[#7c3aed]/40 text-[#d2bbff] text-xs py-2 rounded-lg transition font-semibold';
     genBtn.textContent = '후보 생성';
-    genBtn.addEventListener('click', async function() {
-      genBtn.disabled = true;
-      genBtn.textContent = '생성 시작 중...';
-      try {
-        var res = await fetch('/api/locations/generate-candidates', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            locationId: loc.LOCATION_ID,
-            count: 30,
-            width: 1024,
-            height: 1024,
-          }),
-        });
-        var json = await res.json();
-        if (json.success && json.jobId) {
-          window.location.href = '/locations/candidates/' + encodeURIComponent(json.jobId);
-        } else {
-          alert('후보 생성 실패: ' + (json.error || ''));
-          genBtn.disabled = false;
-          genBtn.textContent = '후보 생성';
-        }
-      } catch (err) {
-        alert('요청 실패: ' + err.message);
-        genBtn.disabled = false;
-        genBtn.textContent = '후보 생성';
-      }
-    });
+    genBtn.addEventListener('click', function() { openGenModal(loc); });
     actions.appendChild(genBtn);
+
+    var delBtn = document.createElement('button');
+    delBtn.className = 'bg-red-500/20 hover:bg-red-500/40 text-red-400 text-xs py-2 px-3 rounded-lg transition';
+    delBtn.textContent = '삭제';
+    delBtn.addEventListener('click', async function() {
+      if (!confirm(loc.NAME + ' 장소를 삭제하시겠습니까?\n후보 이미지와 파생 이미지도 모두 삭제됩니다.')) return;
+      delBtn.disabled = true;
+      try {
+        var res = await fetch('/api/locations/' + encodeURIComponent(loc.LOCATION_ID), { method: 'DELETE' });
+        var json = await res.json();
+        if (json.success) { loadLocations(); }
+        else { alert('삭제 실패: ' + (json.error || '')); delBtn.disabled = false; }
+      } catch (err) { alert('요청 실패: ' + err.message); delBtn.disabled = false; }
+    });
+    actions.appendChild(delBtn);
 
     if (loc.LATEST_JOB_ID) {
       var viewBtn = document.createElement('a');
@@ -179,6 +202,39 @@
       galleryBtn.className = 'flex-1 bg-green-500/20 hover:bg-green-500/40 text-green-400 text-xs py-2 rounded-lg transition text-center font-semibold';
       galleryBtn.textContent = '갤러리 (' + loc.REF_IMAGE_COUNT + ')';
       actions.appendChild(galleryBtn);
+    }
+
+    if (loc.LOCATION_TYPE === 'main') {
+      var skelBtn = document.createElement('button');
+      skelBtn.textContent = '뼈대 생성';
+      skelBtn.className = 'bg-purple-700 hover:bg-purple-600 text-white text-xs px-3 py-1.5 rounded-lg transition';
+      skelBtn.onclick = function(e) {
+        e.stopPropagation();
+        var desc = loc.DESCRIPTION || prompt('장소 3D 설명을 입력하세요 (치수, 가구 배치):');
+        if (!desc) return;
+        skelBtn.disabled = true;
+        skelBtn.textContent = '생성 중...';
+        fetch('/api/locations/' + loc.LOCATION_ID + '/generate-skeleton', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: desc }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.success) {
+            window.location.href = '/locations/blender-preview?locationId=' + loc.LOCATION_ID + '&jobId=' + res.jobId;
+          } else {
+            skelBtn.disabled = false;
+            skelBtn.textContent = '뼈대 생성';
+            alert(res.error || '생성 실패');
+          }
+        })
+        .catch(function() {
+          skelBtn.disabled = false;
+          skelBtn.textContent = '뼈대 생성';
+        });
+      };
+      actions.appendChild(skelBtn);
     }
 
     body.appendChild(actions);
@@ -200,6 +256,49 @@
       loading.textContent = '장소 목록을 불러오지 못했습니다.';
     }
   }
+
+  // ─── 후보 생성 모달 ────────────────────────
+  var genModal = document.getElementById('gen-modal');
+  var currentGenLocId = null;
+
+  function openGenModal(loc) {
+    currentGenLocId = loc.LOCATION_ID;
+    document.getElementById('gen-modal-loc-name').textContent = loc.NAME + ' (' + loc.LOCATION_ID + ')';
+    document.getElementById('gen-count').value = '30';
+    document.getElementById('gen-prompt').value = '';
+    genModal.classList.remove('hidden');
+  }
+
+  document.getElementById('gen-cancel').addEventListener('click', function() { genModal.classList.add('hidden'); });
+  genModal.addEventListener('click', function(e) { if (e.target === genModal) genModal.classList.add('hidden'); });
+
+  document.getElementById('gen-submit').addEventListener('click', async function() {
+    if (!currentGenLocId) return;
+    var count = parseInt(document.getElementById('gen-count').value, 10) || 30;
+    var customPrompt = document.getElementById('gen-prompt').value.trim() || undefined;
+    var btn = document.getElementById('gen-submit');
+    btn.disabled = true; btn.textContent = '생성 중...';
+
+    try {
+      var payload = { locationId: currentGenLocId, count: count, width: 1024, height: 1024 };
+      if (customPrompt) payload.customPrompt = customPrompt;
+      var res = await fetch('/api/locations/generate-candidates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      var json = await res.json();
+      if (json.success && json.jobId) {
+        window.location.href = '/locations/candidates/' + encodeURIComponent(json.jobId);
+      } else {
+        alert('후보 생성 실패: ' + (json.error || ''));
+        btn.disabled = false; btn.textContent = '생성 시작';
+      }
+    } catch (err) {
+      alert('요청 실패: ' + err.message);
+      btn.disabled = false; btn.textContent = '생성 시작';
+    }
+  });
 
   // 모달
   document.getElementById('btn-add').addEventListener('click', function() { modal.classList.remove('hidden'); });
