@@ -53,6 +53,14 @@ router.get('/locations', (_req: Request, res: Response) => {
   res.render('locations/manage', { title: '장소 관리' });
 });
 
+router.get('/locations/blender-preview', (req: Request, res: Response) => {
+  res.render('locations/blender-preview', {
+    title: 'Phase 1 — 스켈레톤 생성',
+    locationId: req.query.locationId ?? '',
+    jobId: req.query.jobId ?? '',
+  });
+});
+
 router.get('/locations/candidates/:jobId', (req: Request, res: Response) => {
   res.render('locations/candidates', { title: '장소 후보 선택', jobId: req.params.jobId });
 });

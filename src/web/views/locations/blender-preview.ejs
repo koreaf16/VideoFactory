@@ -1,0 +1,208 @@
+<div class="max-w-6xl mx-auto">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">Phase 1 — 스켈레톤 생성</h2>
+      <p class="text-xs text-[#ccc3d8] mt-1">장소 ID: <span class="text-[#d2bbff]"><%= locationId %></span></p>
+    </div>
+    <a href="/locations" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition">목록으로</a>
+  </div>
+
+  <!-- 진행 상태 카드 -->
+  <div id="progress-card" class="bg-[#2a2a2c] rounded-xl p-6 mb-6 border border-[#353437]">
+    <div class="flex items-center gap-4 mb-4">
+      <div id="status-icon" class="w-10 h-10 rounded-full bg-[#7c3aed] flex items-center justify-center flex-shrink-0">
+        <span id="spinner-svg" class="animate-spin text-white text-lg">&#9696;</span>
+      </div>
+      <div>
+        <p id="status-text" class="text-lg font-semibold text-[#e5e1e4]">연결 중...</p>
+        <p id="status-detail" class="text-sm text-[#ccc3d8]">블렌더 스켈레톤 생성 파이프라인</p>
+      </div>
+    </div>
+
+    <div class="mb-2">
+      <div class="flex justify-between text-xs text-[#ccc3d8] mb-1">
+        <span id="progress-label">대기 중</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="w-full bg-[#353437] rounded-full h-3">
+        <div id="progress-bar" class="bg-gradient-to-r from-[#7c3aed] to-[#a855f7] h-3 rounded-full transition-all duration-500" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div id="error-box" class="hidden mt-3 bg-red-900/30 border border-red-700 rounded-lg px-4 py-3 text-sm text-red-300"></div>
+  </div>
+
+  <!-- depth map 프리뷰 그리드 -->
+  <div id="preview-area" class="hidden mb-8">
+    <h3 class="text-xl font-bold text-[#e5e1e4] mb-2">Depth Map 프리뷰</h3>
+    <p class="text-sm text-[#ccc3d8] mb-4">카메라 앵글별 depth map 결과입니다.</p>
+    <div id="depth-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+  </div>
+
+  <!-- 액션 버튼 -->
+  <div id="action-buttons" class="hidden flex gap-3 pb-8">
+    <button id="btn-confirm" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-6 py-3 rounded-lg transition">
+      Phase 2 진행 →
+    </button>
+    <button id="btn-regen" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-6 py-3 rounded-lg transition">
+      재생성
+    </button>
+  </div>
+</div>
+
+<script src="/js/characters.js"></script>
+<script>
+(function() {
+  var LOCATION_ID = '<%= locationId %>';
+  var JOB_ID = '<%= jobId %>';
+
+  var progressBar    = document.getElementById('progress-bar');
+  var progressPct    = document.getElementById('progress-pct');
+  var progressLabel  = document.getElementById('progress-label');
+  var statusText     = document.getElementById('status-text');
+  var statusDetail   = document.getElementById('status-detail');
+  var statusIcon     = document.getElementById('status-icon');
+  var spinnerSvg     = document.getElementById('spinner-svg');
+  var errorBox       = document.getElementById('error-box');
+  var previewArea    = document.getElementById('preview-area');
+  var depthGrid      = document.getElementById('depth-grid');
+  var actionButtons  = document.getElementById('action-buttons');
+
+  // ─── 진행률 업데이트 ───────────────────────────────────────
+
+  function setProgress(pct, label) {
+    progressBar.style.width = pct + '%';
+    progressPct.textContent = pct + '%';
+    progressLabel.textContent = label;
+  }
+
+  function handleData(data) {
+    statusText.textContent = data.currentStep || data.status || '처리 중...';
+
+    if (data.status === 'script_generating') {
+      setProgress(25, '블렌더 스크립트 생성 중');
+      statusDetail.textContent = 'Claude CLI로 bpy 스크립트 생성 중';
+
+    } else if (data.status === 'rendering') {
+      setProgress(60, 'Blender 렌더링 중');
+      statusDetail.textContent = 'Depth / Normal map 렌더링 중';
+
+    } else if (data.status === 'validating') {
+      setProgress(85, '결과 검증 중');
+      statusDetail.textContent = '렌더링 결과를 검증하는 중';
+
+    } else if (data.status === 'completed') {
+      setProgress(100, '완료');
+      statusDetail.textContent = data.currentStep || '스켈레톤 생성 완료';
+
+      // 스피너 → 체크마크
+      statusIcon.className = 'w-10 h-10 rounded-full bg-green-900/50 flex items-center justify-center flex-shrink-0';
+      spinnerSvg.className = '';
+      spinnerSvg.textContent = '\u2714';
+      spinnerSvg.style.color = '#4ade80';
+
+      progressBar.className = 'bg-gradient-to-r from-green-600 to-green-400 h-3 rounded-full transition-all duration-500';
+
+      // depth map 프리뷰 로드
+      loadDepthMapPreview();
+
+    } else if (data.status === 'failed') {
+      setProgress(100, '실패');
+      statusDetail.textContent = '오류가 발생했습니다';
+
+      statusIcon.className = 'w-10 h-10 rounded-full bg-red-900/50 flex items-center justify-center flex-shrink-0';
+      spinnerSvg.className = '';
+      spinnerSvg.textContent = '\u2718';
+      spinnerSvg.style.color = '#f87171';
+
+      progressBar.className = 'bg-red-600 h-3 rounded-full transition-all duration-500';
+
+      if (data.error) {
+        errorBox.textContent = '오류: ' + data.error;
+        errorBox.classList.remove('hidden');
+      }
+
+      // 재생성 버튼만 표시
+      actionButtons.classList.remove('hidden');
+      document.getElementById('btn-confirm').classList.add('hidden');
+    }
+  }
+
+  // ─── depth map 프리뷰 렌더링 ──────────────────────────────
+
+  function loadDepthMapPreview() {
+    fetch('/api/locations/' + LOCATION_ID + '/skeleton-preview')
+      .then(function(res) { return res.json(); })
+      .then(function(json) {
+        if (!json.success || !json.data) return;
+
+        var cameraAngles = json.data.cameraAngles || [];
+
+        depthGrid.textContent = '';
+        cameraAngles.forEach(function(cam) {
+          if (!cam.depthMap) return;
+
+          var card = document.createElement('div');
+          card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden border border-[#353437]';
+
+          var img = document.createElement('img');
+          img.src = pathToUrl(cam.depthMap);
+          img.alt = cam.label;
+          img.className = 'w-full aspect-square object-cover';
+          img.loading = 'lazy';
+
+          var label = document.createElement('div');
+          label.className = 'p-2 text-center text-xs text-[#ccc3d8]';
+          label.textContent = cam.label || cam.id;
+
+          card.appendChild(img);
+          card.appendChild(label);
+          depthGrid.appendChild(card);
+        });
+
+        // 카드가 하나라도 있으면 영역 표시
+        if (depthGrid.children.length > 0) {
+          previewArea.classList.remove('hidden');
+        }
+
+        actionButtons.classList.remove('hidden');
+      })
+      .catch(function(err) {
+        // 프리뷰 로드 실패해도 액션 버튼은 표시
+        actionButtons.classList.remove('hidden');
+      });
+  }
+
+  // ─── SSE 연결 ──────────────────────────────────────────────
+
+  var evtSource = new EventSource(
+    '/api/locations/' + LOCATION_ID + '/skeleton-stream?jobId=' + encodeURIComponent(JOB_ID)
+  );
+
+  evtSource.onmessage = function(e) {
+    try {
+      var data = JSON.parse(e.data);
+      handleData(data);
+      if (data.status === 'completed' || data.status === 'failed') {
+        evtSource.close();
+      }
+    } catch (err) { /* ignore parse errors */ }
+  };
+
+  evtSource.onerror = function() {
+    statusText.textContent = '연결 끊김. 페이지를 새로고침해주세요.';
+    evtSource.close();
+  };
+
+  // ─── 액션 버튼 ────────────────────────────────────────────
+
+  document.getElementById('btn-confirm').addEventListener('click', function() {
+    window.location.href = '/locations/candidates?locationId=' + encodeURIComponent(LOCATION_ID);
+  });
+
+  document.getElementById('btn-regen').addEventListener('click', function() {
+    window.location.href = '/locations?regen=' + encodeURIComponent(LOCATION_ID);
+  });
+})();
+</script>
