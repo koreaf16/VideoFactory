@@ -11,12 +11,16 @@ import { comfyuiClient } from '../../comfyui/client';
 import { buildKontextAnchorWorkflow } from '../../comfyui/workflows/kontext-workflows';
 import { config } from '../../config';
 import { getConnection } from '../../db/connection';
-import { findLocationById, insertLocCandidate } from '../../db/queries/location-queries';
+import { findLocationById } from '../../db/queries/location-queries';
+import { insertLocCandidate } from '../../db/queries/location-candidate-queries';
 import { scoreImage } from '../../python-api/endpoints/quality-api';
 import { generateJobId } from '../../common/utils/time-utils';
 import { ensureDir, writeFileBuffer } from '../../common/utils/file-utils';
 import { createThumbnail } from '../../common/utils/image-utils';
 import { logger } from '../../common/logger';
+import { buildLocPrompts, assignGrade, isOutdoorPrompt } from './location-prompt-helpers';
+
+export { isOutdoorPrompt };
 
 // ─── 인터페이스 ─────────────────────────────────────────
 
@@ -44,34 +48,6 @@ export interface LocGenerationJob {
 
 const activeJobs: Map<string, LocGenerationJob> = new Map();
 const EXPORTS_BASE = path.resolve('exports/locations');
-const EMPTY_ROOM_SUFFIX =
-  ', empty room, no people, no characters, unoccupied, photorealistic, 8k, detailed interior photography';
-const VARIATIONS = [
-  '',
-  ', wide angle shot',
-  ', centered composition',
-  ', natural lighting from windows',
-  ', warm ambient lighting',
-  ', slightly different angle',
-  ', soft shadows, even lighting',
-  ', clear details on walls and floor',
-  ', showing full room layout',
-  ', detailed textures on furniture',
-];
-
-function buildLocPrompts(base: string, count: number): { prompt: string; seed: number }[] {
-  return Array.from({ length: count }, (_, i) => ({
-    prompt: base + (VARIATIONS[i % VARIATIONS.length] || '') + EMPTY_ROOM_SUFFIX,
-    seed: Math.floor(Math.random() * 999999999),
-  }));
-}
-
-function assignGrade(score: number): string {
-  if (score >= 0.9) return 'S';
-  if (score >= 0.8) return 'A';
-  if (score >= 0.7) return 'B';
-  return 'C';
-}
 
 // ─── 공개 API ───────────────────────────────────────────
 
@@ -147,7 +123,7 @@ async function processOneLocCandidate(
     filenamePrefix: `${job.locationId}_${promptItem.seed}`,
   });
   const promptId = await comfyuiClient.submitWorkflow(workflow);
-  const images = await comfyuiClient.waitForResult(promptId, 300_000);
+  const { images } = await comfyuiClient.waitForResult(promptId, 300_000);
   if (images.length === 0) throw new Error('ComfyUI에서 이미지 결과를 받지 못했습니다');
 
   const imageUrl = `${config.comfyui.httpUrl}/view?filename=${images[0].filename}&subfolder=${images[0].subfolder ?? ''}&type=${images[0].type ?? 'output'}`;

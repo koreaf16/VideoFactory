@@ -16,8 +16,11 @@ import {
   locDerivEvents,
   stopLocDerivGeneration,
 } from '../services/location-derivative-generator';
-import { LIST_LOC_REF_IMAGES, GET_LOC_ANCHOR_PATH } from '../../db/queries/location-queries';
-import type { LocRefImageRow } from '../../db/queries/location-queries';
+import {
+  LIST_LOC_REF_IMAGES,
+  GET_LOC_ANCHOR_PATH,
+} from '../../db/queries/location-candidate-queries';
+import type { LocRefImageRow } from '../../db/queries/location-candidate-queries';
 import { LOCATION_PRESETS } from '../services/location-presets';
 import { comfyuiClient } from '../../comfyui/client';
 import { buildKontextEditWorkflow } from '../../comfyui/workflows/kontext-workflows';
@@ -166,7 +169,7 @@ router.post(
         filenamePrefix: `${ref.LOCATION_ID}_${preset.angle}_${seed}`,
       });
       const pid = await comfyuiClient.submitWorkflow(wf);
-      const images = await comfyuiClient.waitForResult(pid, 300_000);
+      const { images } = await comfyuiClient.waitForResult(pid, 300_000);
       if (images.length === 0) {
         res.status(500).json({ success: false, error: '생성 실패' });
         return;

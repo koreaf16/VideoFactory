@@ -9,7 +9,7 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../../common/middleware/async-handler';
 import { getConnection } from '../../db/connection';
-import { listLocCandidatesByJob } from '../../db/queries/location-queries';
+import { listLocCandidatesByJob } from '../../db/queries/location-candidate-queries';
 import {
   startLocCandidateGeneration,
   getLocJob,

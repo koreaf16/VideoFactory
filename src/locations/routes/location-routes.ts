@@ -17,12 +17,16 @@ import {
   listLocations,
   findLocationById,
   insertLocation,
+  deleteLocation,
+} from '../../db/queries/location-queries';
+import {
   listLocCandidatesByJob,
   getLatestLocJob,
   toggleLocCandidateLike,
   setLocAnchorCandidate,
   countLocRefImages,
-} from '../../db/queries/location-queries';
+  getLocAnchorPath,
+} from '../../db/queries/location-candidate-queries';
 
 const router = Router();
 
@@ -38,7 +42,13 @@ router.get(
         rows.map(async (r) => {
           const latestJobId = await getLatestLocJob(conn, r.LOCATION_ID);
           const refImageCount = await countLocRefImages(conn, r.LOCATION_ID);
-          return { ...r, LATEST_JOB_ID: latestJobId, REF_IMAGE_COUNT: refImageCount };
+          const anchorPath = await getLocAnchorPath(conn, r.LOCATION_ID);
+          return {
+            ...r,
+            LATEST_JOB_ID: latestJobId,
+            REF_IMAGE_COUNT: refImageCount,
+            ANCHOR_PATH: anchorPath,
+          };
         }),
       );
       res.json({ success: true, data: withMeta });
@@ -89,6 +99,27 @@ router.post(
         promptBase: (body.promptBase as string) || null,
         description: (body.description as string) || null,
       });
+      res.json({ success: true });
+    } finally {
+      await conn.close();
+    }
+  }),
+);
+
+// ─── 장소 삭제 ────────────────────────────────────────────
+
+router.delete(
+  '/:locationId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const locationId = String(req.params.locationId);
+    const conn = await getConnection();
+    try {
+      const exists = await findLocationById(conn, locationId);
+      if (!exists) {
+        res.status(404).json({ success: false, error: '장소를 찾을 수 없습니다' });
+        return;
+      }
+      await deleteLocation(conn, locationId);
       res.json({ success: true });
     } finally {
       await conn.close();
@@ -180,7 +211,12 @@ router.post(
       }
       let derivJobId: string | null = null;
       if (anchor) {
-        derivJobId = startLocDerivativeGeneration(anchor.LOCATION_ID, anchor.IMAGE_PATH);
+        const loc = await findLocationById(conn, anchor.LOCATION_ID);
+        derivJobId = startLocDerivativeGeneration(
+          anchor.LOCATION_ID,
+          anchor.IMAGE_PATH,
+          loc?.PROMPT_BASE ?? undefined,
+        );
       }
       res.json({ success: true, derivativeJobId: derivJobId });
     } finally {

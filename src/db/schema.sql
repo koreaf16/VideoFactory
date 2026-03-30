@@ -84,6 +84,7 @@ CREATE TABLE locations (
   prompt_base       VARCHAR2(2000),
   prompt_variants   JSON,
   description       VARCHAR2(1000),
+  blender_script    CLOB,                 -- bpy 스크립트 원본 (재현/수정용)
   first_ep          NUMBER,
   created_at        TIMESTAMP       DEFAULT SYSTIMESTAMP
 );
