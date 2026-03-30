@@ -1,0 +1,170 @@
+<div>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">프로덕션 파이프라인</h2>
+    <button id="btn-new-run" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition">+ 새 프로덕션</button>
+  </div>
+
+  <!-- 로딩 -->
+  <div id="loading" class="text-center py-20 text-[#ccc3d8]">불러오는 중...</div>
+
+  <!-- 카드 그리드 -->
+  <div id="run-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 hidden"></div>
+
+  <!-- 빈 상태 -->
+  <div id="empty-state" class="text-center py-20 text-[#ccc3d8] hidden">
+    프로덕션 런이 없습니다. 새로 생성해보세요.
+  </div>
+
+  <!-- 새 프로덕션 모달 -->
+  <div id="modal-new-run" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden">
+    <div class="bg-[#1b1b1d] rounded-xl border border-[#2a2a2c] w-full max-w-lg p-6">
+      <h3 class="text-lg font-headline font-bold text-[#e5e1e4] mb-4">새 프로덕션 시작</h3>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-label text-[#ccc3d8] mb-1">주인공 이름</label>
+          <input id="inp-name" type="text" class="w-full bg-[#131315] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:border-[#7c3aed] outline-none" placeholder="예: 아린">
+        </div>
+        <div>
+          <label class="block text-xs font-label text-[#ccc3d8] mb-1">영문 이름</label>
+          <input id="inp-name-en" type="text" class="w-full bg-[#131315] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:border-[#7c3aed] outline-none" placeholder="예: Arin">
+        </div>
+        <div>
+          <label class="block text-xs font-label text-[#ccc3d8] mb-1">역할</label>
+          <input id="inp-role" type="text" class="w-full bg-[#131315] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:border-[#7c3aed] outline-none" placeholder="예: 주인공">
+        </div>
+        <div>
+          <label class="block text-xs font-label text-[#ccc3d8] mb-1">외모 설명 (프롬프트)</label>
+          <textarea id="inp-appearance" rows="3" class="w-full bg-[#131315] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:border-[#7c3aed] outline-none resize-none" placeholder="예: young woman, long black hair, brown eyes, gentle face"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-label text-[#ccc3d8] mb-1">성격/프로필</label>
+          <textarea id="inp-profile" rows="2" class="w-full bg-[#131315] border border-[#4a4455] rounded-lg px-3 py-2 text-sm text-[#e5e1e4] focus:border-[#7c3aed] outline-none resize-none" placeholder="예: 밝고 활발한 성격, 모험을 좋아함"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 mt-6">
+        <button id="btn-cancel" class="px-4 py-2 text-sm text-[#ccc3d8] hover:text-white transition">취소</button>
+        <button id="btn-create" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-5 py-2 rounded-lg transition">생성</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var stageLabels = {
+    protagonist_pending: '주인공 대기',
+    protagonist_visual: '주인공 비주얼',
+    script_pending: '대본 대기',
+    episode_generating: '에피소드 생성',
+    assets_creating: '자산 생성',
+    snapshots_generating: '스냅샷 생성',
+    completed: '완료',
+    failed: '실패',
+    paused: '일시정지',
+  };
+  var stageColors = {
+    protagonist_pending: 'bg-yellow-500/20 text-yellow-400',
+    protagonist_visual: 'bg-purple-500/20 text-purple-400',
+    script_pending: 'bg-blue-500/20 text-blue-400',
+    episode_generating: 'bg-cyan-500/20 text-cyan-400',
+    assets_creating: 'bg-orange-500/20 text-orange-400',
+    snapshots_generating: 'bg-teal-500/20 text-teal-400',
+    completed: 'bg-green-500/20 text-green-400',
+    failed: 'bg-red-500/20 text-red-400',
+    paused: 'bg-gray-500/20 text-gray-400',
+  };
+
+  function formatDate(d) { return d ? String(d).slice(0, 10) : '--'; }
+
+  function buildCard(run) {
+    var stage = run.currentStage || 'protagonist_pending';
+    var a = document.createElement('a');
+    a.href = '/pipeline/runs/' + run.runId;
+    a.className = 'block bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-5 hover:border-[#7c3aed]/50 transition cursor-pointer';
+
+    var header = document.createElement('div');
+    header.className = 'flex items-start justify-between gap-3 mb-3';
+
+    var title = document.createElement('h3');
+    title.className = 'text-base font-semibold text-[#e5e1e4] leading-snug';
+    title.textContent = 'Run #' + run.runId;
+    header.appendChild(title);
+
+    var badge = document.createElement('span');
+    badge.className = 'shrink-0 inline-flex items-center text-[10px] font-semibold px-2.5 py-1 rounded-full ' + (stageColors[stage] || 'bg-gray-500/20 text-gray-400');
+    badge.textContent = stageLabels[stage] || stage;
+    header.appendChild(badge);
+    a.appendChild(header);
+
+    var info = document.createElement('p');
+    info.className = 'text-xs text-[#958da1] mb-1';
+    info.textContent = '주인공: ' + (run.protagonistId || '미지정') + ' | EP: ' + (run.currentEpNum || 0);
+    a.appendChild(info);
+
+    var footer = document.createElement('div');
+    footer.className = 'text-[11px] text-[#ccc3d8]/40 mt-2';
+    footer.textContent = '생성일: ' + formatDate(run.createdAt);
+    a.appendChild(footer);
+
+    return a;
+  }
+
+  // Load runs
+  fetch('/api/pipeline/runs')
+    .then(function (r) { return r.json(); })
+    .then(function (json) {
+      document.getElementById('loading').classList.add('hidden');
+      var runs = (json.success && Array.isArray(json.data)) ? json.data : [];
+      if (runs.length === 0) {
+        document.getElementById('empty-state').classList.remove('hidden');
+        return;
+      }
+      var grid = document.getElementById('run-grid');
+      runs.forEach(function (r) { grid.appendChild(buildCard(r)); });
+      grid.classList.remove('hidden');
+    })
+    .catch(function () {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('empty-state').classList.remove('hidden');
+    });
+
+  // Modal
+  var modal = document.getElementById('modal-new-run');
+  document.getElementById('btn-new-run').onclick = function () { modal.classList.remove('hidden'); };
+  document.getElementById('btn-cancel').onclick = function () { modal.classList.add('hidden'); };
+
+  document.getElementById('btn-create').onclick = function () {
+    var name = document.getElementById('inp-name').value.trim();
+    if (!name) { window.showToast && showToast('주인공 이름을 입력하세요', 'error'); return; }
+
+    var body = {
+      protagonistPreset: {
+        name: name,
+        nameEn: document.getElementById('inp-name-en').value.trim() || undefined,
+        role: document.getElementById('inp-role').value.trim() || '주인공',
+        appearance: document.getElementById('inp-appearance').value.trim() || undefined,
+        profile: document.getElementById('inp-profile').value.trim() || undefined,
+        promptBase: document.getElementById('inp-appearance').value.trim() || undefined,
+      },
+    };
+
+    fetch('/api/pipeline/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        if (json.success) {
+          window.location.href = '/pipeline/runs/' + json.data.runId;
+        } else {
+          window.showToast && showToast(json.error || '생성 실패', 'error');
+        }
+      })
+      .catch(function () { window.showToast && showToast('네트워크 오류', 'error'); });
+  };
+}());
+</script>

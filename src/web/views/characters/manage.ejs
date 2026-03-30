@@ -406,5 +406,53 @@
   });
 
   loadCharacters();
+
+  // ─── 프리셋 지원 (파이프라인에서 전달) ──────
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var presetParam = params.get('preset');
+    if (presetParam) {
+      var preset = JSON.parse(decodeURIComponent(presetParam));
+      // 프리셋 배너 표시
+      var banner = document.createElement('div');
+      banner.className = 'bg-[#7c3aed]/10 border border-[#7c3aed]/30 rounded-xl p-4 mb-6';
+      var bannerTitle = document.createElement('h3');
+      bannerTitle.className = 'text-sm font-semibold text-[#d2bbff] mb-2';
+      bannerTitle.textContent = '파이프라인 프리셋: ' + (preset.name || '');
+      banner.appendChild(bannerTitle);
+
+      var fields = [
+        ['영문 이름', preset.nameEn],
+        ['역할', preset.role],
+        ['외모', preset.appearance || preset.promptBase],
+        ['성격', preset.profile],
+      ];
+      fields.forEach(function (f) {
+        if (!f[1]) return;
+        var p = document.createElement('p');
+        p.className = 'text-xs text-[#ccc3d8]';
+        var lbl = document.createElement('span');
+        lbl.className = 'text-[#958da1]';
+        lbl.textContent = f[0] + ': ';
+        p.appendChild(lbl);
+        p.appendChild(document.createTextNode(f[1]));
+        banner.appendChild(p);
+      });
+
+      var note = document.createElement('p');
+      note.className = 'text-[10px] text-[#958da1] mt-2';
+      note.textContent = '이 캐릭터를 먼저 등록한 후, 후보 생성 모달에서 프롬프트를 확인하세요.';
+      banner.appendChild(note);
+
+      var container = document.querySelector('div');
+      container.insertBefore(banner, container.children[1]);
+
+      // 프롬프트 자동 채움
+      if (preset.promptBase || preset.appearance) {
+        var promptText = preset.promptBase || preset.appearance;
+        document.getElementById('modal-prompt').value = promptText;
+      }
+    }
+  } catch (e) { /* ignore parse errors */ }
 })();
 </script>
