@@ -14,7 +14,7 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../../common/middleware/async-handler';
 import { getConnection } from '../../db/connection';
-import { listEpisodes } from '../../db/queries/episode-queries';
+import { listEpisodes, listEpisodesByScript } from '../../db/queries/episode-queries';
 import {
   createEpisode,
   getEpisodeDetail,
@@ -31,10 +31,13 @@ const router = Router();
 
 router.get(
   '/',
-  asyncHandler(async (_req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
+    const scriptIdParam = req.query.scriptId;
     const conn = await getConnection();
     try {
-      const rows = await listEpisodes(conn);
+      const rows = scriptIdParam
+        ? await listEpisodesByScript(conn, Number(scriptIdParam))
+        : await listEpisodes(conn);
       res.json({ success: true, data: rows });
     } finally {
       await conn.close();

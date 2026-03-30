@@ -25,6 +25,7 @@ import characterRoutes from './characters/routes/character-routes';
 import loraRoutes from './characters/routes/lora-routes';
 import locationRoutes from './locations/routes/location-routes';
 import episodeRoutes from './episodes/routes/episode-routes';
+import masterScriptRoutes from './master-scripts/routes/master-script-routes';
 import videoRoutes from './video/routes/video-routes';
 import healthRoutes from './web/routes/health-routes';
 
@@ -60,6 +61,7 @@ app.use('/api/characters', characterRoutes);
 app.use('/api/characters', loraRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/episodes', episodeRoutes);
+app.use('/api/master-scripts', masterScriptRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/health', healthRoutes);
 

@@ -70,6 +70,7 @@ export async function createEpisode(
         scriptJson: null,
         worldState: null,
         decisionReasoning: req.decisionReasoning ?? null,
+        scriptId: req.scriptId ?? null,
       },
       false,
     );
@@ -147,6 +148,7 @@ export async function getEpisodeDetail(epId: number): Promise<EpisodeDetail> {
       synopsis: ep.SYNOPSIS,
       epType: ep.EP_TYPE,
       status: ep.STATUS,
+      scriptId: ep.SCRIPT_ID,
       createdAt: ep.CREATED_AT,
       approvedAt: ep.APPROVED_AT,
       publishedAt: ep.PUBLISHED_AT,

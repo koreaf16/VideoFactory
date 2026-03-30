@@ -112,6 +112,7 @@ export interface CreateEpisodeRequest {
   readonly synopsis?: string;
   readonly epType?: string;
   readonly decisionReasoning?: string;
+  readonly scriptId?: number;
   readonly scenes: CreateSceneInput[];
 }
 
@@ -140,6 +141,7 @@ export interface EpisodeDetail {
   readonly synopsis: string | null;
   readonly epType: string;
   readonly status: string;
+  readonly scriptId: number | null;
   readonly createdAt: Date;
   readonly approvedAt: Date | null;
   readonly publishedAt: Date | null;

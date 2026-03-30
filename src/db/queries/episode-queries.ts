@@ -20,25 +20,33 @@ import { logger } from '../../common/logger';
 export const FIND_BY_ID = `
   SELECT ep_id, ep_number, title, synopsis, ep_type,
          status, script_json, world_state,
-         decision_reasoning, created_at, approved_at, published_at
+         decision_reasoning, script_id, created_at, approved_at, published_at
     FROM episodes
    WHERE ep_id = :epId
 `;
 
 export const LIST_ALL = `
   SELECT ep_id, ep_number, title, synopsis, ep_type,
-         status, created_at, approved_at, published_at
+         status, script_id, created_at, approved_at, published_at
     FROM episodes
    ORDER BY ep_number DESC
+`;
+
+export const LIST_BY_SCRIPT = `
+  SELECT ep_id, ep_number, title, synopsis, ep_type,
+         status, script_id, created_at, approved_at, published_at
+    FROM episodes
+   WHERE script_id = :scriptId
+   ORDER BY ep_number ASC
 `;
 
 export const INSERT = `
   INSERT INTO episodes
     (ep_number, title, synopsis, ep_type, script_json,
-     world_state, decision_reasoning)
+     world_state, decision_reasoning, script_id)
   VALUES
     (:epNumber, :title, :synopsis, :epType, :scriptJson,
-     :worldState, :decisionReasoning)
+     :worldState, :decisionReasoning, :scriptId)
   RETURNING ep_id INTO :epId
 `;
 
@@ -76,6 +84,7 @@ interface EpisodeRow {
   SYNOPSIS: string | null;
   EP_TYPE: string;
   STATUS: string;
+  SCRIPT_ID: number | null;
   CREATED_AT: Date;
   APPROVED_AT: Date | null;
   PUBLISHED_AT: Date | null;
@@ -89,6 +98,7 @@ interface EpisodeInsertData {
   scriptJson: string | null;
   worldState: string | null;
   decisionReasoning: string | null;
+  scriptId: number | null;
 }
 
 // ─── 쿼리 함수 ──────────────────────────────────────────
@@ -164,4 +174,17 @@ export async function findByEpNumber(
     { outFormat: oracledb.OUT_FORMAT_OBJECT },
   );
   return (result.rows?.length ?? 0) > 0;
+}
+
+export async function listEpisodesByScript(
+  conn: oracledb.Connection,
+  scriptId: number,
+): Promise<EpisodeRow[]> {
+  const result = await conn.execute<EpisodeRow>(
+    LIST_BY_SCRIPT,
+    { scriptId },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT },
+  );
+  logger.debug('스크립트별 에피소드 목록 조회', { scriptId, count: result.rows?.length ?? 0 });
+  return result.rows ?? [];
 }
