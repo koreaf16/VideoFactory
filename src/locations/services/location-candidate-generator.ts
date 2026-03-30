@@ -1,6 +1,6 @@
 /**
  * @module 장소 배경 후보 생성 서비스
- * @description 프롬프트로 FLUX txt2img 배경 이미지를 배치 생성한다.
+ * @description ControlNet depth/normal map을 사용해 배경 이미지를 배치 생성한다.
  *
  * @dependencies comfyui, location-queries, db
  * @author AI Video Factory
@@ -8,7 +8,8 @@
 
 import path from 'path';
 import { comfyuiClient } from '../../comfyui/client';
-import { buildKontextAnchorWorkflow } from '../../comfyui/workflows/kontext-workflows';
+import { buildControlNetCandidateWorkflow } from '../../comfyui/workflows/controlnet-workflows';
+import { getMapPaths } from './blender-renderer';
 import { config } from '../../config';
 import { getConnection } from '../../db/connection';
 import { findLocationById } from '../../db/queries/location-queries';
@@ -114,8 +115,19 @@ async function processOneLocCandidate(
   width: number,
   height: number,
 ): Promise<void> {
+  const { depthMaps, normalMaps } = getMapPaths(job.locationId);
+  if (depthMaps.length === 0) {
+    throw new Error('depth map이 없습니다. Phase 1(뼈대 생성)을 먼저 실행하세요.');
+  }
+
   await comfyuiClient.connect();
-  const workflow = buildKontextAnchorWorkflow({
+  const depthName = await comfyuiClient.uploadImage(depthMaps[0]);
+  const normalName =
+    normalMaps.length > 0 ? await comfyuiClient.uploadImage(normalMaps[0]) : depthName;
+
+  const workflow = buildControlNetCandidateWorkflow({
+    depthMapName: depthName,
+    normalMapName: normalName,
     prompt: promptItem.prompt,
     seed: promptItem.seed,
     width,
