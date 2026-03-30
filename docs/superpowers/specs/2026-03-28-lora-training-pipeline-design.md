@@ -1,13 +1,19 @@
 # LoRA 캐릭터 학습 파이프라인 설계
 
 > 작성: 2026-03-28
+> 최종 업데이트: 2026-03-29
 > 범위: `src/characters/` 도메인 확장 + ComfyUI 워크플로우
 
 ---
 
 ## 1. 개요
 
-FLUX.1 Kontext [dev] 기반으로 캐릭터 LoRA 학습용 데이터셋을 생성하고, ComfyUI 워크플로우를 통해 학습까지 수행하는 엔드투엔드 파이프라인.
+FLUX.1 Dev + Kontext [dev] 기반으로 캐릭터 LoRA 학습용 데이터셋을 생성하고, ComfyUI 워크플로우를 통해 학습까지 수행하는 엔드투엔드 파이프라인.
+
+**모델 사용 구분:**
+- **앵커 생성 (txt2img):** FLUX.1 Dev — 다양한 얼굴 생성에 최적화
+- **파생 생성 (img2img):** FLUX.1 Kontext Dev — 이미지 편집/일관성 유지에 최적화
+- **PuLID 모드:** FLUX.1 Dev + PuLID — 레퍼런스 얼굴 신원 유지
 
 **전체 흐름:** 앵커 이미지 생성 -> 파생 이미지 생성 -> 캡셔닝 -> LoRA 학습 -> 추론 테스트
 
@@ -37,22 +43,27 @@ FLUX.1 Kontext [dev] 기반으로 캐릭터 LoRA 학습용 데이터셋을 생�
 |                  Node.js (localhost:3000)                 |
 |                                                          |
 |  src/characters/services/                                |
-|   +-- candidate-generator.ts   (Kontext 워크플로우)      |
+|   +-- candidate-generator.ts   (후보 생성 오케스트레이션)|
+|   +-- candidate-processor.ts   (개별 후보 1장 처리)      |
+|   +-- prompt-builder.ts        (프롬프트 조립)           |
 |   +-- derivative-generator.ts  (Kontext 편집 워크플로우) |
+|   +-- derivative-filter.ts     (얼굴 유사도 필터링)      |
 |   +-- lora-dataset.ts          * 신규 (데이터셋+캡셔닝)  |
 |   +-- lora-training.ts         * 신규 (학습+평가)        |
-|   +-- prompt-builder.ts        (Kontext용 수정)          |
+|                                                          |
+|  src/characters/templates/                               |
+|   +-- global-style.ts          (공통 품질 프롬프트)      |
+|   +-- character-tags.ts        (외모 → 프롬프트 태그)    |
+|   +-- scene-types.ts           (장면 프리셋)             |
+|   +-- time-weather.ts          (조명 프리셋)             |
+|   +-- negative-prompts.ts      (네거티브 프롬프트)       |
 |                                                          |
 |  src/comfyui/                                            |
-|   +-- client.ts                (기존 WebSocket/HTTP)     |
-|   +-- workflow-builder.ts      (워크플로우 대폭 확장)    |
-|        +-- buildKontextAnchorWorkflow()    앵커 생성     |
-|        +-- buildKontextEditWorkflow()      파생 생성     |
-|        +-- buildCaptionWorkflow()          캡셔닝        |
-|        +-- buildLoraTrainWorkflow()        학습          |
-|        +-- buildLoraInferenceWorkflow()    추론 테스트   |
-|                                                          |
-|  src/gemini/ --- X 삭제                                  |
+|   +-- client.ts                (WebSocket/HTTP 클라이언트)|
+|   +-- workflows/kontext-workflows.ts (워크플로우 빌더)   |
+|        +-- buildKontextAnchorWorkflow()  앵커 (Flux Dev) |
+|        +-- buildPulidAnchorWorkflow()    PuLID (Flux Dev)|
+|        +-- buildKontextEditWorkflow()    파생 (Kontext)  |
 |                                                          |
 |  Oracle DB <- 모든 데이터의 원본 저장소                   |
 |   (이미지 BLOB + 캡션 + 메타데이터)                      |
@@ -62,8 +73,8 @@ FLUX.1 Kontext [dev] 기반으로 캐릭터 LoRA 학습용 데이터셋을 생�
 +----------------------------------------------------------+
 |            ComfyUI 서버 (192.168.0.3:8188)               |
 |                                                          |
-|  커스텀 노드 (ComfyUI-Manager로 설치):                   |
-|   +-- ComfyUI-KontextWrapper     (Kontext 파이프라인)    |
+|  커스텀 노드:                                             |
+|   +-- ComfyUI-PuLID-Flux         (PuLID 얼굴 임베딩)    |
 |   +-- ComfyUI-FluxTrainer        (LoRA 학습)             |
 |   +-- ComfyUI-Florence2          (자동 캡셔닝)           |
 |   +-- ComfyUI-GGUF               (양자화 모델)           |
@@ -72,8 +83,9 @@ FLUX.1 Kontext [dev] 기반으로 캐릭터 LoRA 학습용 데이터셋을 생�
 |   +-- comfyui_controlnet_aux     (OpenPose 등)           |
 |                                                          |
 |  모델:                                                    |
+|   +-- FLUX.1 Dev FP8             diffusion_models/       |
 |   +-- FLUX.1 Kontext [dev]       diffusion_models/       |
-|   +-- ControlNet Union Pro       controlnet/             |
+|   +-- PuLID Flux v0.9.1          models/pulid/           |
 |   +-- VAE (ae.safetensors)       vae/                    |
 |   +-- CLIP (clip_l + t5xxl)      clip/                   |
 |                                                          |
@@ -86,19 +98,180 @@ FLUX.1 Kontext [dev] 기반으로 캐릭터 LoRA 학습용 데이터셋을 생�
 
 ## 3. 파이프라인 흐름
 
-### STEP 1: 앵커 이미지 생성
+### STEP 1: 앵커 이미지 생성 — 2가지 모드 지원 ✅ 구현 완료
 
-- 웹 UI -> Node.js -> ComfyUI (Kontext t2i 워크플로우)
-- 해상도 1024x1024, 단색 배경, 정면 상반신
-- 후보 이미지를 Oracle DB에 저장
-- 웹 UI 갤러리에서 앵커 선택 (seed 기록)
+웹 UI (`/characters`) 모달에서 모드 선택:
+- **모드 A: 레퍼런스 기반** — PuLID + Flux Dev
+- **모드 B: 프롬프트만** — Flux Dev
 
-### STEP 2: 파생 이미지 생성
+두 모드 모두 **FLUX.1 Dev** 모델을 사용한다 (Kontext가 아님).
+Kontext는 이미지 편집(img2img) 전용이라 txt2img에서 얼굴 다양성이 부족하기 때문.
 
-- 웹 UI -> Node.js -> ComfyUI (Kontext 이미지 편집 워크플로우)
-- 앵커를 input으로, 텍스트 지시로 구도 변경
-- 16+ 프리셋: 구도(9) + 포즈(5) + 배경(5) + 표정(3)
-- Oracle DB에 저장, 웹 UI에서 품질 검수 (승인/거절)
+---
+
+#### 모드 A: 레퍼런스 사진 기반 생성 (PuLID)
+
+사용자가 마음에 드는 얼굴 사진을 넣으면, PuLID가 그 얼굴 특징(골격, 비율, 눈 크기, 턱선 등)을 반영한 새로운 AI 캐릭터를 만든다.
+
+**필요 모델 (ComfyUI 서버):**
+- `pulid_flux_v0.9.1.safetensors` → `ComfyUI/models/pulid/`
+- EVA CLIP 얼굴 인코더 (PuLID 노드가 자동 로딩)
+- InsightFace 얼굴 분석 모델 (PuLID 노드가 자동 로딩)
+
+**ComfyUI 커스텀 노드:**
+- `ComfyUI-PuLID-Flux` (`cubiq/ComfyUI-PuLID-Flux`)
+  - `PuLIDFluxModelLoader` — PuLID 모델 로드, 출력: PULIDFLUX
+  - `PuLIDFluxEvaClipLoader` — EVA CLIP 로드, 출력: EVA_CLIP
+  - `PuLIDFluxInsightFaceLoader` — InsightFace 로드 (provider: CUDA), 출력: FACEANALYSIS
+  - `ApplyPuLIDFlux` — 4개 입력 결합하여 MODEL에 PuLID 적용
+
+**프롬프트 규칙 (중요):**
+- PuLID 모드에서는 **얼굴 신원(identity) 태그를 전부 제외**한다
+  - ❌ 머리색, 눈색, 피부톤, 메이크업 스타일, distinct facial features
+  - ✅ 의상, 체형, 악세서리, 구도, 조명, 포토리얼 품질 태그
+- 프롬프트가 얼굴을 묘사하면 PuLID 레퍼런스를 덮어쓰므로 반드시 제외
+- 코드: `generatePulidAnchorPrompts()` → `buildCharacterTagsForPulid()` 사용
+
+**PuLID 파라미터:**
+| 파라미터 | 값 | 설명 |
+|---------|-----|------|
+| weight | 0.3~0.8 (기본 0.55) | 얼굴 반영 강도 |
+| fusion | concat | 얼굴 임베딩 결합 방식 |
+| start_at / end_at | 0.0 / 1.0 | 전 구간 적용 |
+| train_step | 1000 | 내부 파라미터 |
+| use_gray | true | 그레이스케일 참조 |
+
+**ComfyUI 노드 구조:**
+```
+[1]  UNETLoader (flux1-dev-fp8)          ──→ MODEL
+[2]  DualCLIPLoader (clip_l + t5xxl)     ──→ CLIP
+[3]  VAELoader (ae.safetensors)          ──→ VAE
+[4]  LoadImage (레퍼런스 사진)            ──→ IMAGE
+[5]  PuLIDFluxModelLoader (v0.9.1)       ──→ PULIDFLUX
+[13] PuLIDFluxEvaClipLoader              ──→ EVA_CLIP
+[14] PuLIDFluxInsightFaceLoader (CUDA)   ──→ FACEANALYSIS
+[6]  ApplyPuLIDFlux                      ──→ MODEL (PuLID 적용됨)
+     ├─ model: [1]
+     ├─ pulid_flux: [5]
+     ├─ eva_clip: [13]
+     ├─ face_analysis: [14]
+     ├─ image: [4]
+     └─ weight/fusion/...
+[7]  CLIPTextEncode (프롬프트)            ──→ CONDITIONING
+[8]  FluxGuidance (guidance: 3.5)        ──→ CONDITIONING
+[9]  EmptyLatentImage (1024x1024)        ──→ LATENT
+[10] KSampler (cfg:1.0, steps:28, euler) ──→ LATENT
+[11] VAEDecode                           ──→ IMAGE
+[12] SaveImage                           ──→ 출력
+```
+
+---
+
+#### 모드 B: 프롬프트만으로 생성
+
+레퍼런스 없이 텍스트 프롬프트와 시드 가챠로 원하는 얼굴을 찾는다.
+
+**2가지 프롬프트 경로:**
+1. **프롬프트 비움** → DB 캐릭터 외모 데이터에서 자동 생성 (`generateAnchorCandidatePrompts()`)
+   - 표정(2) × 각도(2) = 4 조합을 count만큼 반복
+   - 품질 프리픽스 + 구도 + 캐릭터 태그(머리색, 눈색 등) + 표정 + 앵글 + 조명
+2. **프롬프트 직접 입력** → 포토리얼 품질 프리픽스 자동 추가 후 그대로 사용
+   - 프리픽스: `RAW photo, sharp focus, 8k, photorealistic, highly detailed skin texture, visible pores, 85mm lens, professional photography`
+   - 10가지 앵커 변형(정면/미소/진지 등)을 자동 추가
+
+**ComfyUI 노드 구조:**
+```
+[1] UNETLoader (flux1-dev-fp8)          ──→ MODEL
+[2] DualCLIPLoader                      ──→ CLIP
+[3] VAELoader                           ──→ VAE
+[4] CLIPTextEncode (프롬프트)            ──→ CONDITIONING
+[5] FluxGuidance (guidance: 3.5)        ──→ CONDITIONING
+[6] EmptyLatentImage (1024x1024)        ──→ LATENT
+[7] KSampler (cfg:1.0, steps:28, euler) ──→ LATENT
+[8] VAEDecode                           ──→ IMAGE
+[9] SaveImage                           ──→ 출력
+```
+
+---
+
+#### 두 모드 공통사항
+
+**앵커 이미지 생성 팁:**
+- Guidance Scale: **3.0~3.5** 권장 (높을수록 프롬프트 반영 강화)
+- 최소 **30장 이상** 뽑고 그 중 고르는 시드 가챠 방식이 필수
+- 해상도: 1024x1024 (기본)
+
+**앵커 선정 기준:**
+- 얼굴 특징이 명확하고 자연스러움
+- 손/손가락 등 해부학적 오류 없음
+- 캐릭터 콘셉트에 부합
+- 선택 후 **seed 번호가 DB에 자동 기록**
+
+**앵커 확정 흐름 (웹 UI):**
+1. `/characters` → 캐릭터 카드 → "후보 생성" 클릭
+2. 모달에서 모드/프롬프트/개수 설정 → "생성 시작"
+3. `/characters/candidates/:jobId` → 후보 그리드 (실시간 SSE 스트리밍)
+4. 마음에 드는 이미지 클릭 → "이 이미지로 앵커 확정"
+5. `POST /api/characters/candidates/:jobId/anchor` → 앵커 DB 저장
+6. **자동으로 파생 이미지 생성 시작** → `/characters/derivatives/:jobId`로 리다이렉트
+
+> **⚠ 중요:** 모드 A에서 뷰티 LoRA를 같이 쓴 경우, 이후 파생 이미지 생성과 LoRA 학습 시에는 **뷰티 LoRA와 PuLID를 끈다.** 최종 내 LoRA는 외부 도구 의존 없이 독립적으로 동작해야 한다. 뷰티 LoRA와 PuLID는 "이쁜 앵커 원본을 만드는 도구"로만 사용하고, 파생 이미지는 Kontext 에디팅으로 앵커 이미지만 입력해서 생성한다.
+
+### STEP 2: 파생 이미지 생성 (얼굴 LoRA 전용) ✅ 구현 완료
+
+앵커 확정 시 **자동 트리거**됨. `derivative-generator.ts` 가 처리.
+
+**사용 모델:** FLUX.1 Kontext Dev (`flux1-dev-kontext_fp8_scaled.safetensors`)
+- Kontext는 이미지 편집에 특화 → 앵커 얼굴 일관성 유지하면서 포즈/표정 변경에 최적
+
+**워크플로우:** `buildKontextEditWorkflow()`
+```
+[1]  UNETLoader (flux1-dev-kontext)      ──→ MODEL
+[2]  DualCLIPLoader                      ──→ CLIP
+[3]  VAELoader                           ──→ VAE
+[4]  LoadImage (앵커 이미지)              ──→ IMAGE
+[5]  VAEEncode (앵커 → latent)           ──→ LATENT (reference)
+[6]  CLIPTextEncode (편집 프롬프트)       ──→ CONDITIONING
+[7]  FluxGuidance (guidance: 5.0)        ──→ CONDITIONING
+[8]  ReferenceLatent (ref latent 결합)   ──→ CONDITIONING
+[9]  EmptyLatentImage (1024x1024)        ──→ LATENT (noise)
+[10] KSampler (cfg:1.0, denoise:1.0)    ──→ LATENT
+[11] VAEDecode                           ──→ IMAGE
+[12] SaveImage                           ──→ 출력
+```
+
+**프리셋 (13개):**
+
+| # | 포즈/표정 | 타입 | 유사도 필터 |
+|---|----------|------|-----------|
+| 1 | 정면 미소 | 얼굴 클로즈업 | ✅ |
+| 2 | 정면 진지 | 얼굴 클로즈업 | ✅ |
+| 3 | 정면 놀람 | 얼굴 클로즈업 | ✅ |
+| 4 | 좌측 45도 미소 | 얼굴 클로즈업 | ✅ |
+| 5 | 우측 45도 미소 | 얼굴 클로즈업 | ✅ |
+| 6 | 좌측 45도 진지 | 얼굴 클로즈업 | ✅ |
+| 7 | 측면 프로필 | 얼굴 클로즈업 | ❌ (skipSimilarity) |
+| 8 | 살짝 고개숙임 | 얼굴 클로즈업 | ✅ |
+| 9 | 웃음 클로즈업 | 얼굴 클로즈업 | ✅ |
+| 10 | 화난 표정 | 얼굴 클로즈업 | ✅ |
+| 11 | 슬픈 표정 | 얼굴 클로즈업 | ✅ |
+| 12 | 윙크 | 얼굴 클로즈업 | ✅ |
+| 13 | 정면 상반신 | 상반신 | ✅ |
+
+**전신/뒷모습 전부 제외** — 품질 나쁜 이미지는 넣는 것보다 빼는 게 낫다.
+
+**유사도 필터링 (`derivative-filter.ts`):**
+- 생성 완료 후 Python `compareFaces()` API로 앵커 대비 얼굴 유사도 측정
+- 임계값: `FACE_SIMILARITY_THRESHOLD = 0.4`
+- 비유사 이미지 자동 삭제 (파일 + DB)
+- `skipSimilarity: true`인 프리셋(측면 프로필)은 필터 제외
+
+**웹 UI (`/characters/derivatives/:jobId`):**
+- SSE 실시간 스트리밍으로 진행 표시
+- 상태: `preparing → generating → filtering → completed`
+- 통계: 유사 확보 / 총 생성 / 삭제 / 배치
+- 결과 이미지 그리드 + 중지 버튼
+- Oracle DB `char_ref_images` 테이블에 저장
 
 ### STEP 3: 데이터셋 준비 + 캡셔닝
 
@@ -108,7 +281,13 @@ FLUX.1 Kontext [dev] 기반으로 캐릭터 LoRA 학습용 데이터셋을 생�
 - Node.js 후처리: trigger_word 삽입 + 캐릭터 고유속성 보정
 - 웹 UI에서 캡션 검토/수정
 
-**캡션 구조:** `[trigger_word], [캐릭터 고정 속성], [이미지별 변수 속성]`
+**캡션 구조:** `[trigger_word], [얼굴/표정/각도 중심 캡션]`
+
+**★ 얼굴 LoRA 캡셔닝 규칙:**
+- 이 LoRA는 **얼굴 LoRA**이다. 전신 프롬프트 사용 시 몸/의상/체형은 베이스 모델이 생성한다.
+- 데이터셋은 얼굴 클로즈업(12장) + 상반신(3장)으로만 구성한다.
+- Florence-2 자동 캡션에서 의상/체형 서술이 과도하면 수동 보정 권장.
+- LoRA는 얼굴 일관성만 담당하며, 전신/의상/배경은 프롬프트 + 베이스 모델에 위임.
 
 ### STEP 4: LoRA 학습
 

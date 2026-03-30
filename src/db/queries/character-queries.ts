@@ -19,26 +19,28 @@ import { logger } from '../../common/logger';
 
 export const FIND_BY_ID = `
   SELECT char_id, name, name_en, role, char_type,
-         profile, appearance, voice_config, mood,
-         lora_path, created_at
+         profile, appearance, prompt_base, voice_config, mood,
+         lora_path, anchor_blob, anchor_thumbnail, created_at
     FROM characters
    WHERE char_id = :charId
 `;
 
 export const LIST_ALL = `
   SELECT char_id, name, name_en, role, char_type,
-         lora_path, created_at
+         prompt_base, lora_path, created_at,
+         CASE WHEN anchor_thumbnail IS NOT NULL THEN 1 ELSE 0 END AS HAS_ANCHOR
     FROM characters
-   ORDER BY created_at DESC
+   ORDER BY CASE WHEN char_type = 'protagonist' THEN 0 ELSE 1 END,
+            created_at ASC
 `;
 
 export const INSERT = `
   INSERT INTO characters
     (char_id, name, name_en, role, char_type,
-     profile, appearance, voice_config, mood, lora_path)
+     profile, appearance, prompt_base, voice_config, mood, lora_path)
   VALUES
     (:charId, :name, :nameEn, :role, :charType,
-     :profile, :appearance, :voiceConfig, :mood, :loraPath)
+     :profile, :appearance, :promptBase, :voiceConfig, :mood, :loraPath)
 `;
 
 export const UPDATE_ANCHOR = `
@@ -55,7 +57,32 @@ export const UPDATE_STATUS = `
    WHERE char_id = :charId
 `;
 
-// ─── 타입 ────────────────────────────────────────────────
+export const DELETE_CHARACTER = `DELETE FROM characters WHERE char_id = :charId`;
+export const DELETE_CANDIDATES_BY_CHAR = `DELETE FROM char_candidates WHERE char_id = :charId`;
+export const DELETE_REF_IMAGES_BY_CHAR = `DELETE FROM char_ref_images WHERE char_id = :charId`;
+
+// LoRA 관련 삭제 (외래 키 순서)
+export const DELETE_LORA_TEST_IMAGES_BY_CHAR = `
+  DELETE FROM lora_test_images WHERE checkpoint_id IN (
+    SELECT checkpoint_id FROM lora_checkpoints WHERE job_id IN (
+      SELECT job_id FROM lora_training_jobs WHERE char_id = :charId
+    )
+  )
+`;
+export const DELETE_LORA_CHECKPOINTS_BY_CHAR = `
+  DELETE FROM lora_checkpoints WHERE job_id IN (
+    SELECT job_id FROM lora_training_jobs WHERE char_id = :charId
+  )
+`;
+export const DELETE_LORA_TRAINING_JOBS_BY_CHAR = `DELETE FROM lora_training_jobs WHERE char_id = :charId`;
+export const DELETE_LORA_DATASET_IMAGES_BY_CHAR = `
+  DELETE FROM lora_dataset_images WHERE dataset_id IN (
+    SELECT dataset_id FROM lora_datasets WHERE char_id = :charId
+  )
+`;
+export const DELETE_LORA_DATASETS_BY_CHAR = `DELETE FROM lora_datasets WHERE char_id = :charId`;
+
+// ─── 쿼리 함수 ──────────────────────────────────────────
 
 interface CharacterRow {
   CHAR_ID: string;
@@ -63,7 +90,11 @@ interface CharacterRow {
   NAME_EN: string | null;
   ROLE: string | null;
   CHAR_TYPE: string | null;
+  PROMPT_BASE: string | null;
   LORA_PATH: string | null;
+  ANCHOR_BLOB: Buffer | null;
+  ANCHOR_THUMBNAIL: Buffer | null;
+  HAS_ANCHOR: number;
   CREATED_AT: Date;
 }
 
@@ -75,6 +106,7 @@ interface CharacterInsertData {
   charType: string | null;
   profile: string | null;
   appearance: string | null;
+  promptBase: string | null;
   voiceConfig: string | null;
   mood: string | null;
   loraPath: string | null;
@@ -120,6 +152,30 @@ export async function updateCharacterStatus(
 ): Promise<void> {
   await conn.execute(UPDATE_STATUS, { charType, charId }, { autoCommit: true });
   logger.info('캐릭터 상태 업데이트', { charId, charType });
+}
+
+export async function deleteCharacter(
+  conn: oracledb.Connection,
+  charId: string,
+): Promise<void> {
+  // 외래 키 제약 순서: 자식부터 부모 순으로 삭제
+  // 1. LoRA 테스트 이미지 (lora_checkpoints 참조)
+  await conn.execute(DELETE_LORA_TEST_IMAGES_BY_CHAR, { charId }, { autoCommit: false });
+  // 2. LoRA 체크포인트 (lora_training_jobs 참조)
+  await conn.execute(DELETE_LORA_CHECKPOINTS_BY_CHAR, { charId }, { autoCommit: false });
+  // 3. LoRA 학습 작업 (char_id 참조)
+  await conn.execute(DELETE_LORA_TRAINING_JOBS_BY_CHAR, { charId }, { autoCommit: false });
+  // 4. LoRA 데이터셋 이미지 (lora_datasets 참조)
+  await conn.execute(DELETE_LORA_DATASET_IMAGES_BY_CHAR, { charId }, { autoCommit: false });
+  // 5. LoRA 데이터셋 (char_id 참조)
+  await conn.execute(DELETE_LORA_DATASETS_BY_CHAR, { charId }, { autoCommit: false });
+  // 6. 캐릭터 파생 이미지 (char_id 참조)
+  await conn.execute(DELETE_REF_IMAGES_BY_CHAR, { charId }, { autoCommit: false });
+  // 7. 캐릭터 후보 (char_id 참조)
+  await conn.execute(DELETE_CANDIDATES_BY_CHAR, { charId }, { autoCommit: false });
+  // 8. 캐릭터 (부모 테이블)
+  await conn.execute(DELETE_CHARACTER, { charId }, { autoCommit: true });
+  logger.info('캐릭터 삭제', { charId });
 }
 
 export async function updateCharacterAnchor(

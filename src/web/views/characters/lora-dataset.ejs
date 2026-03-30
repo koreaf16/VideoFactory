@@ -277,11 +277,15 @@ function loraDataset() {
         var res = await fetch('/api/characters/' + encodeURIComponent(this.selectedCharId) + '/lora/dataset');
         if (!res.ok) return;
         var json = await res.json();
-        if (json.data && json.data.datasetId) {
-          this.datasetId = json.data.datasetId;
-          this.datasetStatus = json.data.status || 'preparing';
-          this.triggerWord = json.data.triggerWord || '';
-          this.datasetName = json.data.name || '';
+        if (json.data && json.data.length > 0) {
+          var ds = json.data[0]; // 최신 데이터셋 사용
+          this.datasetId = ds.datasetId || ds.DATASET_ID;
+          this.datasetStatus = ds.status || ds.STATUS || 'preparing';
+          this.triggerWord = ds.triggerWord || ds.TRIGGER_WORD || '';
+          this.datasetName = ds.name || ds.NAME || '';
+          
+          // 이미 캡셔닝된 이미지들을 위해 captionedImages 업데이트
+          this.captionedImages = this.images.filter(function(img) { return img.caption; });
         }
       } catch (err) {
         // 기존 데이터셋이 없으면 무시
@@ -307,7 +311,7 @@ function loraDataset() {
     },
 
     statusLabel(status) {
-      var map = { preparing: '준비 중', captioning: '캡셔닝 진행 중', ready: '완료' };
+      var map = { draft: '초안', preparing: '준비 중', captioning: '캡셔닝 진행 중', ready: '완료' };
       return map[status] || status || '알 수 없음';
     },
 
@@ -339,7 +343,7 @@ function loraDataset() {
         var json = await res.json();
         if (json.success && json.data) {
           this.datasetId = json.data.datasetId || json.data.id;
-          this.datasetStatus = 'preparing';
+          this.datasetStatus = 'draft';
           showToast('데이터셋이 생성되었습니다.', 'success');
         } else {
           showToast(json.error || '데이터셋 생성에 실패했습니다.', 'error');
@@ -351,6 +355,8 @@ function loraDataset() {
     },
 
     async startCaptioning() {
+      if (!this.datasetId || !this.triggerWord) return;
+      
       this.captioningStarted = true;
       this.captionProgress = { current: 0, total: this.images.length, status: 'running' };
 
@@ -359,14 +365,17 @@ function loraDataset() {
         fetch('/api/characters/' + encodeURIComponent(this.selectedCharId) + '/lora/caption', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ datasetId: this.datasetId })
+          body: JSON.stringify({ 
+            datasetId: this.datasetId,
+            triggerWord: this.triggerWord
+          })
         });
 
         // SSE 스트림 연결
         var self = this;
         if (this.eventSource) this.eventSource.close();
         this.eventSource = new EventSource(
-          '/api/characters/' + encodeURIComponent(this.selectedCharId) + '/lora/caption/stream'
+          '/api/characters/' + encodeURIComponent(this.selectedCharId) + '/lora/caption/stream?datasetId=' + encodeURIComponent(this.datasetId)
         );
 
         this.eventSource.onmessage = function(e) {

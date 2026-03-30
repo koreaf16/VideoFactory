@@ -26,6 +26,7 @@ import type {
   PromptRequest,
   PromptResponse,
   SystemStats,
+  ComfyUIResult,
 } from './types/comfyui.types';
 
 type ProgressCallback = (update: ProgressUpdate) => void;
@@ -111,8 +112,17 @@ class ComfyUIClient {
   async submitWorkflow(workflow: ComfyUIWorkflow): Promise<string> {
     const body: PromptRequest = { prompt: workflow, client_id: this.clientId };
     const res = await this.httpRequest<PromptResponse>('/prompt', 'POST', body);
+    if (res.error) {
+      throw new Error(`ComfyUI 워크플로우 거부 — ${res.error.message} (${res.error.type})`);
+    }
     if (Object.keys(res.node_errors).length > 0) {
-      logger.warn('워크플로우 노드 에러 발생', { errors: res.node_errors });
+      const missing = Object.entries(res.node_errors)
+        .map(([id, err]) => `노드 #${id}: ${JSON.stringify(err)}`)
+        .join(', ');
+      throw new Error(`ComfyUI 워크플로우 노드 에러 — ${missing}`);
+    }
+    if (!res.prompt_id) {
+      throw new Error('ComfyUI 응답에 prompt_id 없음');
     }
     logger.info('워크플로우 제출 완료', { promptId: res.prompt_id });
     return res.prompt_id;
@@ -122,8 +132,8 @@ class ComfyUIClient {
     promptId: string,
     timeoutMs: number = 120_000,
     abortSignal?: AbortSignal,
-  ): Promise<ImageResult[]> {
-    return new Promise<ImageResult[]>((resolve, reject) => {
+  ): Promise<ComfyUIResult> {
+    return new Promise<ComfyUIResult>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingResults.delete(promptId);
         reject(new Error(`ComfyUI 결과 대기 타임아웃: ${promptId}`));
@@ -138,15 +148,16 @@ class ComfyUIClient {
       }
 
       this.pendingResults.set(promptId, {
-        resolve: (images: ImageResult[]) => {
+        resolve: (result: ComfyUIResult) => {
           clearTimeout(timer);
-          resolve(images);
+          resolve(result);
         },
         reject: (err: Error) => {
           clearTimeout(timer);
           reject(err);
         },
         images: [],
+        texts: [],
       });
     });
   }

@@ -12,6 +12,7 @@
  * @author AI Video Factory
  */
 
+import fs from 'fs';
 import path from 'path';
 import oracledb from 'oracledb';
 import { comfyuiClient } from '../../comfyui/client';
@@ -19,8 +20,9 @@ import { buildKontextEditWorkflow } from '../../comfyui/workflows/kontext-workfl
 import { config } from '../../config';
 import { getConnection } from '../../db/connection';
 import { ensureDir, writeFileBuffer } from '../../common/utils/file-utils';
-import { createThumbnail } from '../../common/utils/image-utils';
+import { createThumbnail, restoreImageFromBlob } from '../../common/utils/image-utils';
 import { logger } from '../../common/logger';
+import { getFaceBoundingBox } from '../../python-api/endpoints/embedding-api';
 import {
   DERIVATIVE_PRESETS,
   type DerivativePreset,
@@ -28,6 +30,10 @@ import {
   type DerivativeJob,
 } from './derivative-presets';
 import { filterAndDeleteDissimilar } from './derivative-filter';
+import {
+  LIST_CUSTOM_REF_IMAGES,
+  DELETE_NON_CUSTOM_REF_IMAGES,
+} from '../../db/queries/character-queries';
 
 // ─── 이미지 생성 (1장) ──────────────────────────────────
 
@@ -37,17 +43,19 @@ export async function generateOneImage(
   _basePrompt: string,
   outDir: string,
   emitProgress: (job: DerivativeJob) => void,
+  isCustom: boolean = false,
 ): Promise<DerivativeResult | null> {
   const seed = Math.floor(Math.random() * 999999999);
-  // Kontext ReferenceLatent가 앵커 이미지에서 identity를 보존하므로
-  // 편집 프롬프트에 외모 토큰을 추가하면 오히려 편집 지시가 희석된다.
   const editPrompt = preset.promptSuffix;
 
   job.currentStep = `${preset.label} 생성 중... (${job.generated + 1}/${job.total})`;
   emitProgress(job);
 
+  // 0. 앵커 이미지 복원 (ComfyUI 업로드용)
+  const tempAnchorPath = await restoreImageFromBlob(job.anchorBlob, `anchor_${job.charId}`);
+
   await comfyuiClient.connect();
-  const anchorName = await comfyuiClient.uploadImage(job.anchorPath);
+  const anchorName = await comfyuiClient.uploadImage(tempAnchorPath);
   const workflow = buildKontextEditWorkflow({
     anchorImageName: anchorName,
     editPrompt,
@@ -55,48 +63,83 @@ export async function generateOneImage(
     filenamePrefix: `${job.charId}_${preset.label}_${seed}`,
   });
   const promptId = await comfyuiClient.submitWorkflow(workflow);
-  // Flux Kontext ReferenceLatent는 레이턴트 크기가 2배 → RTX 3090 기준 최대 5분
-  const images = await comfyuiClient.waitForResult(promptId, 300_000);
+  const { images } = await comfyuiClient.waitForResult(promptId, 300_000);
   if (images.length === 0) throw new Error('ComfyUI 편집 결과 없음');
 
   const imageUrl = `${config.comfyui.httpUrl}/view?filename=${images[0].filename}&subfolder=${images[0].subfolder ?? ''}&type=${images[0].type ?? 'output'}`;
   const imageResponse = await fetch(imageUrl);
   const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+
+  const thumbnail = await createThumbnail(imageBuffer);
+  
+  // 파일 저장
+  await ensureDir(outDir);
   const filename = `${job.charId}_${preset.label}_${seed}.png`;
   const imagePath = path.join(outDir, filename);
   await writeFileBuffer(imagePath, imageBuffer);
-
-  const thumbnail = await createThumbnail(imageBuffer);
   await writeFileBuffer(path.join(outDir, `thumb_${filename}`), thumbnail);
 
-  const refId = await saveDerivativeToDb(job.charId, imagePath, preset.label);
+  // 1. 얼굴 좌표 추출
+  let faceBbox: any = null;
+  try {
+    const bboxResult = await getFaceBoundingBox(imagePath);
+    if (bboxResult.success && bboxResult.data) {
+      faceBbox = bboxResult.data;
+      logger.debug('파생 이미지 얼굴 좌표 추출 완료', { charId: job.charId, bbox: faceBbox });
+    }
+  } catch (err: unknown) {
+    logger.warn('파생 이미지 얼굴 좌표 추출 실패 (건너뜀)', { charId: job.charId, error: String(err) });
+  }
+
+  // 2. DB 저장 (BLOB, BBox 포함)
+  const refId = await saveDerivativeToDb(
+    job.charId,
+    imageBuffer,
+    thumbnail,
+    preset.label,
+    faceBbox,
+    isCustom
+  );
+  
   job.generated += 1;
 
   return {
     refId,
     imagePath,
+    imageBlob: imageBuffer,
     label: preset.label,
     prompt: editPrompt,
     seed,
     skipSimilarity: preset.skipSimilarity,
+    isCustom,
   };
 }
 
 async function saveDerivativeToDb(
   charId: string,
-  imagePath: string,
+  imageBlob: Buffer,
+  thumbnailBlob: Buffer,
   poseTag: string,
+  faceBbox: any = null,
+  isCustom: boolean = false,
 ): Promise<number | undefined> {
   const conn = await getConnection();
   try {
     const result = await conn.execute(
-      `INSERT INTO char_ref_images (char_id, image_path, pose_tag)
-       VALUES (:charId, :imagePath, :poseTag)
+      `INSERT INTO char_ref_images (char_id, image_blob, thumbnail_blob, pose_tag, face_bbox, is_custom)
+       VALUES (:charId, :imageBlob, :thumbnailBlob, :poseTag, :faceBbox, :isCustom)
        RETURNING ref_id INTO :refId`,
-      { charId, imagePath, poseTag, refId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER } },
+      {
+        charId,
+        imageBlob,
+        thumbnailBlob,
+        poseTag,
+        faceBbox: faceBbox ? JSON.stringify(faceBbox) : null,
+        isCustom: isCustom ? 1 : 0,
+        refId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
+      },
       { autoCommit: true },
     );
-    // oracledb outBinds 타입이 any라서 타입 캐스팅 필요
     const outBinds = result.outBinds as unknown as { refId: number[] };
     return outBinds.refId[0];
   } finally {
@@ -112,10 +155,45 @@ export async function processDerivativeLoop(
   outDir: string,
   emitProgress: (job: DerivativeJob) => void,
 ): Promise<void> {
-  await ensureDir(outDir);
+  const customPoseTags = new Set<string>();
+  const conn = await getConnection();
+  try {
+    const customRows = await conn.execute<{ REF_ID: number; IMAGE_BLOB: Buffer; POSE_TAG: string }>(
+      LIST_CUSTOM_REF_IMAGES,
+      { charId: job.charId },
+      { outFormat: oracledb.OUT_FORMAT_OBJECT },
+    );
+    for (const row of customRows.rows ?? []) {
+      customPoseTags.add(row.POSE_TAG);
+      job.results.push({
+        refId: row.REF_ID,
+        imageBlob: row.IMAGE_BLOB,
+        label: row.POSE_TAG,
+        prompt: '(커스텀 보존)',
+        seed: 0,
+        isCustom: true,
+      });
+    }
+
+    await conn.execute(DELETE_NON_CUSTOM_REF_IMAGES, { charId: job.charId }, { autoCommit: true });
+
+    if (customPoseTags.size > 0) {
+      logger.info('커스텀 이미지 보존', {
+        charId: job.charId,
+        preserved: [...customPoseTags],
+      });
+    }
+    logger.info('비커스텀 파생 이미지 DB 정리 완료', { charId: job.charId });
+  } finally {
+    await conn.close();
+  }
+
+  const presetsToGenerate = DERIVATIVE_PRESETS.filter((p) => !customPoseTags.has(p.label));
+  job.total = DERIVATIVE_PRESETS.length;
+  job.completed = DERIVATIVE_PRESETS.length - presetsToGenerate.length;
   job.status = 'generating';
 
-  for (const preset of DERIVATIVE_PRESETS) {
+  for (const preset of presetsToGenerate) {
     if (job.shouldStop) {
       job.status = 'stopped';
       job.currentStep = `중단됨 — ${job.completed}/${job.total} 포즈 완료`;
@@ -133,13 +211,15 @@ export async function processDerivativeLoop(
     emitProgress(job);
   }
 
-  const allGenerated = [...job.results];
-  const kept = await filterAndDeleteDissimilar(job, allGenerated, emitProgress);
-  job.results = kept;
+  const customKept = job.results.filter((r) => r.isCustom);
+  const newlyGenerated = job.results.filter((r) => !r.isCustom);
+  const kept = await filterAndDeleteDissimilar(job, newlyGenerated, emitProgress);
+  job.results = [...customKept, ...kept];
+  const totalKept = customKept.length + kept.length;
   job.status = 'completed';
-  job.currentStep = `완료! ${kept.length}/${allGenerated.length}장 유사 통과 (${job.deleted}장 삭제)`;
+  job.currentStep = `완료! ${totalKept}장 (커스텀 ${customKept.length} + 신규 ${kept.length}/${newlyGenerated.length})`;
   emitProgress(job);
-  logger.info('파생 생성 완료', {
+  logger.info('파생 생성 완료 (DB 전용)', {
     jobId: job.jobId,
     generated: job.generated,
     kept: kept.length,

@@ -158,6 +158,21 @@
       });
   }
 
+  function selectAll() {
+    if (!_grid) return;
+    _grid.querySelectorAll('[data-ref-id]').forEach(function (card) {
+      var refId = Number(card.dataset.refId);
+      if (refId) {
+        _selected.add(refId);
+        card.style.outline = '2px solid #7c3aed';
+        card.style.outlineOffset = '-2px';
+        var cb = card.querySelector('.approval-cb-wrap input');
+        if (cb) cb.checked = true;
+      }
+    });
+    updateFloatingBar();
+  }
+
   // ── 공개 API ────────────────────────────────────────────────
 
   function init(gridEl, options) {
@@ -202,5 +217,5 @@
     _options = null;
   }
 
-  global.ApprovalMode = { init: init, destroy: destroy };
+  global.ApprovalMode = { init: init, destroy: destroy, selectAll: selectAll, clearSelection: clearSelection };
 })(window);

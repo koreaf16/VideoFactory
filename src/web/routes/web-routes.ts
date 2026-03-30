@@ -93,8 +93,16 @@ router.get('/scripts', (_req: Request, res: Response) => {
   res.render('scripts/list', { title: '마스터 대본' });
 });
 
+router.get('/scripts/new', (_req: Request, res: Response) => {
+  res.render('scripts/create', { title: '새 마스터 대본' });
+});
+
 router.get('/scripts/:scriptId', (req: Request, res: Response) => {
   res.render('scripts/detail', { title: '대본 상세', scriptId: req.params.scriptId });
+});
+
+router.get('/scripts/:scriptId/edit', (req: Request, res: Response) => {
+  res.render('scripts/edit', { title: '대본 수정', scriptId: req.params.scriptId });
 });
 
 // ─── 영상 생성 큐 ───────────────────────────────────────────

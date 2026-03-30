@@ -16,7 +16,7 @@ import { getMapPaths } from './blender-renderer';
 import { config } from '../../config';
 import { getConnection } from '../../db/connection';
 import { ensureDir, writeFileBuffer } from '../../common/utils/file-utils';
-import { createThumbnail } from '../../common/utils/image-utils';
+import { createThumbnail, restoreImageFromBlob } from '../../common/utils/image-utils';
 import { generateJobId } from '../../common/utils/time-utils';
 import { logger } from '../../common/logger';
 import {
@@ -63,7 +63,10 @@ async function generateOneAngle(
   await comfyuiClient.connect();
   const depthName = await comfyuiClient.uploadImage(depthFile);
   const normalName = normalFile ? await comfyuiClient.uploadImage(normalFile) : depthName;
-  const anchorName = await comfyuiClient.uploadImage(job.anchorPath); // style anchor
+  
+  // 스타일 앵커 복원
+  const tempAnchorPath = await restoreImageFromBlob(job.anchorBlob, `loc_anchor_${job.locationId}`);
+  const anchorName = await comfyuiClient.uploadImage(tempAnchorPath); // style anchor
 
   // ControlNet + IP-Adapter: depth/normal map으로 공간 구조 유지, 스타일 앵커로 색감/분위기 유지
   const workflow = buildControlNetDerivativeWorkflow({
@@ -81,21 +84,24 @@ async function generateOneAngle(
   const imageUrl = `${config.comfyui.httpUrl}/view?filename=${images[0].filename}&subfolder=${images[0].subfolder ?? ''}&type=${images[0].type ?? 'output'}`;
   const resp = await fetch(imageUrl);
   const buf = Buffer.from(await resp.arrayBuffer());
+  const thumb = await createThumbnail(buf);
+
   const filename = `${job.locationId}_${preset.angle}_${seed}.png`;
   const imagePath = path.join(outDir, filename);
   await writeFileBuffer(imagePath, buf);
-  await writeFileBuffer(path.join(outDir, `thumb_${filename}`), await createThumbnail(buf));
+  await writeFileBuffer(path.join(outDir, `thumb_${filename}`), thumb);
 
   const conn = await getConnection();
   let refId: number | undefined;
   try {
     const r = await conn.execute(
-      `INSERT INTO location_ref_images (location_id, image_path, angle, approved)
-       VALUES (:locationId, :imagePath, :angle, 1)
+      `INSERT INTO location_ref_images (location_id, image_blob, thumbnail_blob, angle, approved)
+       VALUES (:locationId, :imageBlob, :thumbnailBlob, :angle, 1)
        RETURNING ref_id INTO :refId`,
       {
         locationId: job.locationId,
-        imagePath,
+        imageBlob: buf,
+        thumbnailBlob: thumb,
         angle: preset.angle,
         refId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
       },
@@ -119,7 +125,7 @@ async function generateOneAngle(
 
 export function startLocDerivativeGeneration(
   locationId: string,
-  anchorPath: string,
+  anchorBlob: Buffer,
   promptBase?: string,
 ): string {
   if (!promptBase) {
@@ -129,7 +135,7 @@ export function startLocDerivativeGeneration(
   const job: LocationDerivJob = {
     jobId,
     locationId,
-    anchorPath,
+    anchorBlob,
     promptBase,
     status: 'preparing',
     total: LOCATION_PRESETS.length,
@@ -182,11 +188,10 @@ async function processLoop(
     await conn.close();
   }
 
-  // 이전 파일 정리 (앵커 이미지가 있는 디렉토리는 보존)
+  // 이전 파일 정리
   const parentDir = path.join(EXPORTS_BASE, job.locationId);
-  const anchorDir = path.basename(path.dirname(job.anchorPath));
   if (fs.existsSync(parentDir)) {
-    for (const d of fs.readdirSync(parentDir).filter((x) => x !== job.jobId && x !== anchorDir)) {
+    for (const d of fs.readdirSync(parentDir).filter((x) => x !== job.jobId)) {
       const fp = path.join(parentDir, d);
       if (fs.statSync(fp).isDirectory()) fs.rmSync(fp, { recursive: true, force: true });
     }

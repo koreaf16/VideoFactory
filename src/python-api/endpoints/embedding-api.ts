@@ -36,11 +36,28 @@ export interface FaceCompareResult {
   total_count: number;
 }
 
+/** 얼굴 바운딩 박스 결과 (JSON) */
+export interface FaceBBoxResult {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
 /** 이미지 임베딩 생성 (CLIP) */
 export async function getImageEmbedding(
   imagePath: string
 ): Promise<PythonApiResponse<EmbeddingResult>> {
   return pythonApi.post<EmbeddingResult>('/api/embedding/image', {
+    image_path: imagePath,
+  });
+}
+
+/** 얼굴 바운딩 박스 추출 (bbox) */
+export async function getFaceBoundingBox(
+  imagePath: string
+): Promise<PythonApiResponse<FaceBBoxResult>> {
+  return pythonApi.post<FaceBBoxResult>('/api/embedding/face/bbox', {
     image_path: imagePath,
   });
 }

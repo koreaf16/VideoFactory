@@ -20,12 +20,34 @@ export function buildCaptionWorkflow(opts: CaptionWorkflowOptions): ComfyUIWorkf
       class_type: 'LoadImage',
       inputs: { image: opts.imageName },
     },
+    '10': {
+      class_type: 'DownloadAndLoadFlorence2Model',
+      inputs: {
+        model: 'microsoft/Florence-2-large',
+        precision: 'fp16',
+        attention: 'sdpa'
+      }
+    },
     '2': {
       class_type: 'Florence2Run',
       inputs: {
         image: ['1', 0],
+        florence2_model: ['10', 0],
+        text_input: '',
         task: opts.task ?? 'detailed_caption',
+        fill_mask: false,
+        keep_model_loaded: false,
         max_new_tokens: 512,
+        num_beams: 3,
+        do_sample: false,
+        output_mask_select: '',
+        seed: 1
+      },
+    },
+    '3': {
+      class_type: 'ShowText|pysssss',
+      inputs: {
+        text: ['2', 2],
       },
     },
   };

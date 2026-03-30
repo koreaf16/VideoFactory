@@ -58,6 +58,64 @@ def extract_face_embedding(image_path: str) -> list[float] | None:
     return encodings[0].tolist()
 
 
+def get_face_bounding_box(
+    image_path: str,
+    padding_ratio: float = 0.5,
+) -> dict | None:
+    """이미지에서 얼굴 바운딩 박스를 추출한다 (패딩 포함).
+
+    Args:
+        image_path: 이미지 파일 경로
+        padding_ratio: 얼굴 크기 대비 패딩 비율 (기본 0.5 = 50%)
+
+    Returns:
+        {top, left, width, height} 딕셔너리, 얼굴 미검출 시 None
+    """
+    fr = _get_fr()
+    path = Path(image_path)
+
+    if not path.exists():
+        logger.warning("이미지 파일 없음: %s", image_path)
+        return None
+
+    image = fr.load_image_file(str(path))
+    locations = fr.face_locations(image)
+
+    if not locations:
+        logger.warning("얼굴 미검출 (bbox): %s", image_path)
+        return None
+
+    # 첫 번째 얼굴 사용 (top, right, bottom, left)
+    top, right, bottom, left = locations[0]
+    img_h, img_w = image.shape[:2]
+
+    face_w = right - left
+    face_h = bottom - top
+    pad_x = int(face_w * padding_ratio)
+    pad_y = int(face_h * padding_ratio)
+
+    # 패딩 적용 + 이미지 경계 클램핑
+    crop_top = max(0, top - pad_y)
+    crop_left = max(0, left - pad_x)
+    crop_bottom = min(img_h, bottom + pad_y)
+    crop_right = min(img_w, right + pad_x)
+
+    result = {
+        "top": crop_top,
+        "left": crop_left,
+        "width": crop_right - crop_left,
+        "height": crop_bottom - crop_top,
+    }
+
+    logger.info(
+        "얼굴 bbox 추출: face=(%d,%d,%d,%d) → crop=(%d,%d,%dx%d)",
+        top, left, bottom, right,
+        crop_top, crop_left, result["width"], result["height"],
+    )
+
+    return result
+
+
 def compare_faces(
     anchor_path: str,
     image_paths: list[str],

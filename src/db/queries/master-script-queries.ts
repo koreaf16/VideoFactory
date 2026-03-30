@@ -54,6 +54,11 @@ export const UPDATE_STATUS = `
    WHERE script_id = :scriptId
 `;
 
+export const DELETE_SCRIPT = `
+  DELETE FROM master_scripts
+   WHERE script_id = :scriptId
+`;
+
 export const LIST_EPISODES_BY_SCRIPT = `
   SELECT ep_id, ep_number, title, status, created_at
     FROM episodes
@@ -153,4 +158,14 @@ export async function listEpisodesByScript(
   const result = await conn.execute<ScriptEpisodeRow>(LIST_EPISODES_BY_SCRIPT, { scriptId }, OBJ);
   logger.debug('스크립트별 에피소드 목록 조회', { scriptId, count: result.rows?.length ?? 0 });
   return result.rows ?? [];
+}
+
+export async function deleteMasterScript(
+  conn: oracledb.Connection,
+  scriptId: number,
+  autoCommit = true,
+): Promise<number> {
+  const result = await conn.execute(DELETE_SCRIPT, { scriptId }, { autoCommit });
+  logger.info('마스터 스크립트 삭제', { scriptId, rowsDeleted: result.rowsAffected });
+  return result.rowsAffected ?? 0;
 }

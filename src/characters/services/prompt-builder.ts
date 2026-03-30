@@ -26,7 +26,7 @@ import { CharacterAppearance } from '../types/character.types';
 import { GLOBAL_STYLE, ANCHOR_STYLE } from '../templates/global-style';
 import { SCENE_PRESETS } from '../templates/scene-types';
 import { LIGHTING_PRESETS } from '../templates/time-weather';
-import { buildCharacterTags, buildExpressionTag, buildAngleTag } from '../templates/character-tags';
+import { buildCharacterTags, buildCharacterTagsForPulid, buildExpressionTag, buildAngleTag } from '../templates/character-tags';
 import { buildNegativePrompt } from '../templates/negative-prompts';
 
 // ─── 후보 프롬프트 인터페이스 ───────────────────────────────
@@ -125,7 +125,7 @@ export function generateCandidatePrompts(
 
 // ─── 앵커/마스터 이미지 전용 프롬프트 빌더 ──────────────────
 //
-// Gemini 조언 반영: flat lighting, 정면, 무표정/미소만, 단색 배경
+// flat lighting, 정면, 무표정/미소만, 단색 배경
 // → FaceID 합성 & LoRA 학습에 최적인 "증명사진" 스타일
 //
 
@@ -140,9 +140,9 @@ const ANCHOR_ANGLES = [
 ] as const;
 
 const ANCHOR_SCENE =
-  'head and shoulders portrait, centered composition, simple clean framing, extreme face detail, highly detailed skin texture, visible pores, 85mm lens';
+  'head and shoulders portrait, centered composition, simple clean framing, extreme face detail, Korean idol makeup';
 const ANCHOR_LIGHTING =
-  'flat studio lighting, soft even light, no harsh shadows, softbox lighting, extremely bright and clear';
+  'studio lighting, gray background, soft even light, no harsh shadows';
 
 /**
  * 앵커/마스터 이미지용 후보 프롬프트를 생성한다.
@@ -183,6 +183,70 @@ export function generateAnchorCandidatePrompts(
       angle: angle.key,
       lighting: 'studio_flat',
       scene: 'master_portrait',
+    });
+
+    idx += 1;
+  }
+
+  return candidates;
+}
+
+// ─── PuLID 레퍼런스 모드 전용 프롬프트 빌더 ──────────────────
+//
+// 얼굴 관련 묘사를 전부 제거하여 PuLID 레퍼런스 얼굴이 100% 반영되도록 한다.
+// 구도, 의상, 조명만 프롬프트로 지정한다.
+//
+
+/**
+ * PuLID 전용 품질 프롬프트.
+ * 얼굴 신원(identity)을 정하는 태그(머리색, 눈색, 피부톤, 메이크업 스타일)는 제외.
+ * 포토리얼 품질 + 피부 질감 태그는 유지.
+ */
+const PULID_STYLE =
+  'RAW photo, sharp focus, 8k, photorealistic, highly detailed skin texture, visible pores, 85mm lens, professional photography';
+
+/** PuLID 전용 구도 — 얼굴 신원 태그 없이 구도+품질만 */
+const PULID_SCENE =
+  'head and shoulders portrait, centered composition, simple clean framing, detailed face';
+
+/**
+ * PuLID 레퍼런스 모드용 앵커 프롬프트를 생성한다.
+ *
+ * 얼굴 관련 태그를 전부 제외하고
+ * 구도/의상/조명만 프롬프트에 포함하여 PuLID가 얼굴을 전적으로 담당하도록 한다.
+ */
+export function generatePulidAnchorPrompts(
+  appearance: CharacterAppearance,
+  count: number = 10,
+): CandidatePrompt[] {
+  const charTags = buildCharacterTagsForPulid(appearance);
+  const baseNegative = buildNegativePrompt({ includeFace: true, includeBody: true });
+  const negativePrompt = baseNegative;
+
+  const candidates: CandidatePrompt[] = [];
+
+  let idx = 0;
+  while (candidates.length < count) {
+    const expr = ANCHOR_EXPRESSIONS[idx % ANCHOR_EXPRESSIONS.length];
+    const angle = ANCHOR_ANGLES[Math.floor(idx / ANCHOR_EXPRESSIONS.length) % ANCHOR_ANGLES.length];
+
+    const prompt = [
+      PULID_STYLE,
+      PULID_SCENE,
+      charTags,
+      expr.tags,
+      angle.tags,
+      ANCHOR_LIGHTING,
+    ].join(', ');
+
+    candidates.push({
+      prompt,
+      negativePrompt,
+      seed: randomSeed(),
+      expression: expr.key,
+      angle: angle.key,
+      lighting: 'studio_flat',
+      scene: 'pulid_portrait',
     });
 
     idx += 1;

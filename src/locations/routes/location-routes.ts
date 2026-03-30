@@ -22,7 +22,6 @@ import {
 import {
   getLatestLocJob,
   countLocRefImages,
-  getLocAnchorPath,
 } from '../../db/queries/location-candidate-queries';
 
 const router = Router();
@@ -39,12 +38,10 @@ router.get(
         rows.map(async (r) => {
           const latestJobId = await getLatestLocJob(conn, r.LOCATION_ID);
           const refImageCount = await countLocRefImages(conn, r.LOCATION_ID);
-          const anchorPath = await getLocAnchorPath(conn, r.LOCATION_ID);
           return {
             ...r,
             LATEST_JOB_ID: latestJobId,
             REF_IMAGE_COUNT: refImageCount,
-            ANCHOR_PATH: anchorPath,
           };
         }),
       );

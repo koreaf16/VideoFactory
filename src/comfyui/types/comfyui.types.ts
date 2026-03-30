@@ -36,11 +36,12 @@ export interface PromptRequest {
   client_id?: string;
 }
 
-/** POST /prompt 응답 */
+/** POST /prompt 응답 — 유효하지 않은 워크플로우는 prompt_id 없이 error 포함 */
 export interface PromptResponse {
-  prompt_id: string;
-  number: number;
-  node_errors: Record<string, string>;
+  prompt_id?: string;
+  number?: number;
+  node_errors: Record<string, unknown>;
+  error?: { type: string; message: string; details?: string; extra_info?: unknown };
 }
 
 /** GET /system_stats 응답 */
@@ -61,6 +62,12 @@ export interface ImageResult {
   filename: string;
   subfolder: string;
   type: string;
+}
+
+/** 생성 완료된 모든 결과 (이미지 + 텍스트) */
+export interface ComfyUIResult {
+  images: ImageResult[];
+  texts: string[];
 }
 
 /** WebSocket 진행률 메시지 */

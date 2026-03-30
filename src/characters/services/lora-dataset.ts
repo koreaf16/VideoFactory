@@ -28,6 +28,8 @@ import {
 import type { DatasetRow, DatasetImageRow } from '../../db/queries/lora-queries';
 import { runCaptioningLoop } from './lora-caption';
 import { logger } from '../../common/logger';
+import { restoreImageFromBlob } from '../../common/utils/image-utils';
+import { getFaceBoundingBox, getImageEmbedding } from '../../python-api/endpoints/embedding-api';
 
 // ─── SSE 이벤트 ────────────────────────────────────────
 
@@ -65,19 +67,70 @@ export async function createDataset(
     });
 
     for (const imageId of imageIds) {
+      let imageBlob: Buffer | null = null;
+      let thumbnailBlob: Buffer | null = null;
+      let poseTag: string | null = null;
+      let existingBbox: any = null;
+
+      if (sourceType === 'derivative') {
+        const res = await conn.execute<{ IMAGE_BLOB: Buffer; THUMBNAIL_BLOB: Buffer; POSE_TAG: string | null; FACE_BBOX: string | null }>(
+          `SELECT image_blob, thumbnail_blob, pose_tag, face_bbox FROM char_ref_images WHERE ref_id = :refId`,
+          { refId: Number(imageId) },
+          { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+        if (res.rows && res.rows[0]) {
+          imageBlob = res.rows[0].IMAGE_BLOB;
+          thumbnailBlob = res.rows[0].THUMBNAIL_BLOB;
+          poseTag = res.rows[0].POSE_TAG;
+          existingBbox = res.rows[0].FACE_BBOX ? JSON.parse(res.rows[0].FACE_BBOX) : null;
+        }
+      } else if (sourceType === 'candidate') {
+        const res = await conn.execute<{ IMAGE_BLOB: Buffer; THUMBNAIL_BLOB: Buffer; FACE_BBOX: string | null }>(
+          `SELECT image_blob, thumbnail_blob, face_bbox FROM char_candidates WHERE candidate_id = :cid`,
+          { cid: Number(imageId) },
+          { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+        if (res.rows && res.rows[0]) {
+          imageBlob = res.rows[0].IMAGE_BLOB;
+          thumbnailBlob = res.rows[0].THUMBNAIL_BLOB;
+          existingBbox = res.rows[0].FACE_BBOX ? JSON.parse(res.rows[0].FACE_BBOX) : null;
+        }
+      }
+
+      if (!imageBlob) {
+        logger.warn('이미지 소스를 찾을 수 없음', { sourceType, imageId });
+        continue;
+      }
+
+      // AI 처리를 위해 임시 파일 복원
+      const tempPath = await restoreImageFromBlob(imageBlob, `dataset_${datasetId}`);
+      
+      // 만약 기존 BBox가 없으면 새로 추출
+      if (!existingBbox) {
+        const bboxRes = await getFaceBoundingBox(tempPath);
+        if (bboxRes.success) existingBbox = bboxRes.data;
+      }
+
+      // CLIP 임베딩 추출 (학습 전 품질 검증용)
+      const embedRes = await getImageEmbedding(tempPath);
+      const faceEmbedding = embedRes.success ? embedRes.data?.embedding : null;
+
       await conn.execute(INSERT_DATASET_IMAGE, {
         datasetImageId: randomUUID(),
         datasetId,
         sourceType,
         sourceId: imageId,
-        imagePath: '',
-        poseTag: null,
+        imageBlob,
+        thumbnailBlob: thumbnailBlob || imageBlob, // 썸네일 없으면 원본
+        faceBbox: existingBbox ? JSON.stringify(existingBbox) : null,
+        faceEmbedding: faceEmbedding, // VECTOR 타입
+        poseTag,
         approved: 1,
       });
     }
 
     await conn.commit();
-    logger.info('데이터셋 생성 완료', { datasetId, charId, images: imageIds.length });
+    logger.info('데이터셋 생성 완료 (BLOB 포함)', { datasetId, charId, images: imageIds.length });
     return datasetId;
   } catch (err: unknown) {
     await conn.rollback();

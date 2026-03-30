@@ -1,0 +1,123 @@
+<div>
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <a href="/episodes" class="text-xs text-[#ccc3d8] hover:text-[#d2bbff] transition mb-2 inline-block">&larr; 에피소드 목록</a>
+      <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">새 에피소드 생성</h2>
+    </div>
+  </div>
+
+  <!-- Create form -->
+  <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-6 max-w-2xl">
+    <div class="space-y-4">
+      <!-- Episode Number -->
+      <div>
+        <label class="block text-sm font-medium text-[#ccc3d8] mb-2">에피소드 번호</label>
+        <input id="ep-number" type="number" min="1" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]" placeholder="1">
+      </div>
+
+      <!-- Title -->
+      <div>
+        <label class="block text-sm font-medium text-[#ccc3d8] mb-2">제목</label>
+        <input id="ep-title" type="text" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]" placeholder="에피소드 제목 입력">
+      </div>
+
+      <!-- Synopsis -->
+      <div>
+        <label class="block text-sm font-medium text-[#ccc3d8] mb-2">시놉시스</label>
+        <textarea id="ep-synopsis" rows="4" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed] resize-none" placeholder="에피소드에 대한 설명을 입력하세요"></textarea>
+      </div>
+
+      <!-- Scene count -->
+      <div>
+        <label class="block text-sm font-medium text-[#ccc3d8] mb-2">씬 개수</label>
+        <input id="ep-scene-count" type="number" min="1" value="1" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-3 justify-end mt-6">
+      <a href="/episodes" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-5 py-2.5 rounded-lg transition inline-block">취소</a>
+      <button id="btn-create" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition">생성</button>
+    </div>
+
+    <!-- Status -->
+    <div id="status" class="mt-4 text-sm text-[#ccc3d8]/60 hidden"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('btn-create');
+  var numEl = document.getElementById('ep-number');
+  var titleEl = document.getElementById('ep-title');
+  var synopsisEl = document.getElementById('ep-synopsis');
+  var sceneCountEl = document.getElementById('ep-scene-count');
+  var statusEl = document.getElementById('status');
+
+  function setStatus(msg, isError) {
+    statusEl.textContent = msg;
+    statusEl.className = 'mt-4 text-sm ' + (isError ? 'text-red-400' : 'text-green-400');
+    statusEl.classList.remove('hidden');
+  }
+
+  btn.addEventListener('click', async function () {
+    var epNumber = parseInt(numEl.value);
+    var title = titleEl.value.trim();
+    var synopsis = synopsisEl.value.trim();
+    var sceneCount = parseInt(sceneCountEl.value);
+
+    if (!epNumber || epNumber < 1) {
+      setStatus('에피소드 번호를 입력하세요', true);
+      return;
+    }
+    if (!title) {
+      setStatus('제목을 입력하세요', true);
+      return;
+    }
+    if (!sceneCount || sceneCount < 1) {
+      setStatus('씬 개수를 입력하세요', true);
+      return;
+    }
+
+    btn.disabled = true;
+    setStatus('생성 중...', false);
+
+    try {
+      var scenes = [];
+      for (var i = 1; i <= sceneCount; i++) {
+        scenes.push({
+          sceneNumber: i,
+          description: '',
+          script: '',
+          promptEn: '',
+          motionPrompt: '',
+        });
+      }
+
+      var res = await fetch('/api/episodes/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          epNumber: epNumber,
+          title: title,
+          synopsis: synopsis || null,
+          scenes: scenes,
+        }),
+      });
+
+      var json = await res.json();
+
+      if (json.success && json.epId) {
+        window.location.href = '/episodes/' + json.epId + '/edit';
+      } else {
+        setStatus('생성 실패: ' + (json.error || 'Unknown error'), true);
+        btn.disabled = false;
+      }
+    } catch (err) {
+      setStatus('오류: ' + (err instanceof Error ? err.message : String(err)), true);
+      btn.disabled = false;
+    }
+  });
+}());
+</script>

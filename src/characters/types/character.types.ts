@@ -52,10 +52,10 @@ export interface Character {
   readonly charType: string;
   readonly profile: CharacterProfile;
   readonly appearance: CharacterAppearance;
+  readonly promptBase?: string;
   readonly voiceConfig?: string;
   readonly mood?: string;
-  readonly faceEmbedding?: number[];
-  readonly anchorBlob?: Buffer;
+  readonly anchor_id?: number;
   readonly loraPath?: string;
   readonly createdAt: Date;
 }
@@ -84,9 +84,14 @@ export interface CharRefImage {
   readonly createdAt: Date;
 }
 
+export type AnchorMode = 'reference' | 'prompt';
+
 export interface CandidateGenerateRequest {
   readonly charId: string;
   readonly count?: number;
+  readonly mode?: AnchorMode;
+  readonly pulidStrength?: number;
+  readonly guidance?: number;
 }
 
 export interface AnchorConfirmRequest {

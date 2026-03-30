@@ -44,7 +44,8 @@ router.get(
         data: rows.map((r) => ({
           refId: r.REF_ID,
           charId: r.CHAR_ID,
-          imagePath: r.IMAGE_PATH,
+          imageUrl: `/api/images/char_ref_images/${r.REF_ID}`,
+          thumbnailUrl: `/api/images/char_ref_images/${r.REF_ID}?thumbnail=true`,
           poseTag: r.POSE_TAG,
           qualityScore: r.QUALITY_SCORE,
           approved: r.APPROVED === 1,

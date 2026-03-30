@@ -19,8 +19,9 @@ import { getConnection } from '../../db/connection';
 import {
   findCharacterById,
   listCharacters,
+  insertCharacter,
   countRefImagesByChar,
-  getAnchorPath,
+  deleteCharacter,
 } from '../../db/queries/character-queries';
 import { listCandidatesByJob, getLatestJobByChar } from '../../db/queries/candidate-queries';
 import {
@@ -71,7 +72,8 @@ async function handleGetCandidatesFromDb(jobId: string, res: Response): Promise<
     const charId = rows[0].CHAR_ID;
     const candidates = rows.map((r) => ({
       candidateId: r.CANDIDATE_ID,
-      imagePath: r.IMAGE_PATH,
+      imageUrl: `/api/images/char_candidates/${r.CANDIDATE_ID}`,
+      thumbnailUrl: `/api/images/char_candidates/${r.CANDIDATE_ID}?thumbnail=true`,
       prompt: r.PROMPT_TEXT ?? '',
       seed: r.SEED ?? 0,
       qualityScore: r.QUALITY_SCORE ?? undefined,
@@ -107,6 +109,48 @@ router.use('/', galleryRoutes);
 // 후보 이미지 좋아요/앵커 라우트
 router.use('/', candidateRoutes);
 
+// ─── 캐릭터 생성 ──────────────────────────────────────────
+
+router.post(
+  '/',
+  asyncHandler(async (req: Request, res: Response) => {
+    const body = req.body as Record<string, unknown>;
+    const charId = body.charId as string | undefined;
+    const name = body.name as string | undefined;
+    if (!charId || !name) {
+      res.status(400).json({ success: false, error: 'charId와 name은 필수입니다' });
+      return;
+    }
+
+    const conn = await getConnection();
+    try {
+      const exists = await findCharacterById(conn, charId);
+      if (exists) {
+        res.status(409).json({ success: false, error: '이미 존재하는 charId입니다' });
+        return;
+      }
+
+      await insertCharacter(conn, {
+        charId,
+        name,
+        nameEn: (body.nameEn as string) || null,
+        role: (body.role as string) || null,
+        charType: (body.charType as string) || null,
+        profile: body.profile ? JSON.stringify(body.profile) : null,
+        appearance: body.appearance ? JSON.stringify(body.appearance) : null,
+        promptBase: (body.promptBase as string) || null,
+        voiceConfig: null,
+        mood: null,
+        loraPath: null,
+      });
+      logger.info('캐릭터 생성 API', { charId, name });
+      res.json({ success: true, charId });
+    } finally {
+      await conn.close();
+    }
+  }),
+);
+
 // ─── 캐릭터 목록/상세 ──────────────────────────────────────
 
 router.get(
@@ -119,12 +163,10 @@ router.get(
         rows.map(async (r) => {
           const latestJobId = await getLatestJobByChar(conn, r.CHAR_ID as string);
           const refImageCount = await countRefImagesByChar(conn, r.CHAR_ID as string);
-          const anchorPath = await getAnchorPath(conn, r.CHAR_ID as string);
           return {
             ...r,
             LATEST_JOB_ID: latestJobId,
             REF_IMAGE_COUNT: refImageCount,
-            ANCHOR_PATH: anchorPath,
           };
         }),
       );
@@ -147,6 +189,27 @@ router.get(
         return;
       }
       res.json({ success: true, data: row });
+    } finally {
+      await conn.close();
+    }
+  }),
+);
+
+// ─── 캐릭터 삭제 ──────────────────────────────────────────
+
+router.delete(
+  '/:charId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const charId = String(req.params.charId);
+    const conn = await getConnection();
+    try {
+      const exists = await findCharacterById(conn, charId);
+      if (!exists) {
+        res.status(404).json({ success: false, error: '캐릭터를 찾을 수 없습니다' });
+        return;
+      }
+      await deleteCharacter(conn, charId);
+      res.json({ success: true });
     } finally {
       await conn.close();
     }

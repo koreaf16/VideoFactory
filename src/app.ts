@@ -22,11 +22,14 @@ import { errorHandler } from './common/middleware/error-handler';
 
 import webRoutes from './web/routes/web-routes';
 import characterRoutes from './characters/routes/character-routes';
+import characterAnchorRoutes from './characters/routes/character-anchor-routes';
 import loraRoutes from './characters/routes/lora-routes';
 import locationRoutes from './locations/routes/location-routes';
+import locationAnchorRoutes from './locations/routes/location-anchor-routes';
 import episodeRoutes from './episodes/routes/episode-routes';
 import masterScriptRoutes from './master-scripts/routes/master-script-routes';
 import videoRoutes from './video/routes/video-routes';
+import imageRoutes from './common/routes/image-routes';
 import healthRoutes from './web/routes/health-routes';
 
 // ─── Express 앱 생성 ────────────────────────────────────────
@@ -58,11 +61,14 @@ app.use(requestLogger);
 
 app.use('/', webRoutes);
 app.use('/api/characters', characterRoutes);
+app.use('/api/characters', characterAnchorRoutes);
 app.use('/api/characters', loraRoutes);
 app.use('/api/locations', locationRoutes);
+app.use('/api/locations', locationAnchorRoutes);
 app.use('/api/episodes', episodeRoutes);
 app.use('/api/master-scripts', masterScriptRoutes);
 app.use('/api/video', videoRoutes);
+app.use('/api/images', imageRoutes);
 app.use('/api/health', healthRoutes);
 
 // ─── 글로벌 에러 핸들러 ─────────────────────────────────────

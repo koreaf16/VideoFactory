@@ -6,7 +6,9 @@
       <p class="text-xs text-[#ccc3d8] mt-1">캐릭터: <span class="text-[#d2bbff]"><%= charId %></span></p>
     </div>
     <div class="flex gap-2 items-center">
+      <button id="btn-select-all" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition hidden">전체 선택</button>
       <button id="btn-approve-toggle" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition hidden">선택 승인</button>
+      <button id="btn-approve-all" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg transition hidden">전체 승인</button>
       <a href="/characters" class="bg-[#353437] hover:bg-[#4a4455] text-[#e5e1e4] text-sm px-4 py-2 rounded-lg transition">목록으로</a>
     </div>
   </div>
@@ -69,14 +71,15 @@
     var card = document.createElement('div');
     card.className = 'bg-[#2a2a2c] rounded-lg overflow-hidden cursor-pointer group hover:ring-2 hover:ring-[#7c3aed] transition relative';
     card.dataset.refId = String(img.refId);
-    card.dataset.imagePath = img.imagePath || '';
+    card.dataset.imageUrl = img.imageUrl || '';
+    card.dataset.thumbnailUrl = img.thumbnailUrl || '';
     card.dataset.approved = img.approved ? '1' : '0';
 
     var imgWrap = document.createElement('div');
     imgWrap.className = 'aspect-[3/4] bg-[#353437] flex items-center justify-center';
-    if (img.imagePath) {
+    if (img.thumbnailUrl) {
       var imgEl = document.createElement('img');
-      imgEl.src = thumbUrl(img.imagePath);
+      imgEl.src = img.thumbnailUrl;
       imgEl.alt = img.poseTag || '';
       imgEl.className = 'w-full h-full object-cover';
       imgEl.loading = 'lazy';
@@ -98,10 +101,10 @@
     card.appendChild(info);
 
     card.addEventListener('click', function() {
-      var imgPath = card.dataset.imagePath;
-      if (imgPath) {
+      var imgUrl = card.dataset.imageUrl;
+      if (imgUrl) {
         currentRefId = Number(card.dataset.refId);
-        document.getElementById('img-modal-src').src = pathToUrl(imgPath);
+        document.getElementById('img-modal-src').src = imgUrl;
         document.getElementById('img-modal-label').textContent = img.poseTag || '';
         document.getElementById('img-modal-modify').value = '';
         document.getElementById('img-modal').classList.remove('hidden');
@@ -138,6 +141,7 @@
       document.getElementById('stats-bar').classList.remove('hidden');
       document.getElementById('bottom-actions').classList.remove('hidden');
       document.getElementById('btn-approve-toggle').classList.remove('hidden');
+      document.getElementById('btn-approve-all').classList.remove('hidden');
 
       var grid = document.getElementById('gallery-grid');
       grid.classList.remove('hidden');
@@ -188,10 +192,11 @@
       if (ov) ov.remove();
       if (data.success && data.result && card) {
         card.dataset.refId = String(data.result.refId);
-        card.dataset.imagePath = data.result.imagePath;
+        card.dataset.imageUrl = data.result.imageUrl || '';
+        card.dataset.thumbnailUrl = data.result.thumbnailUrl || '';
         var img = card.querySelector('img');
-        if (img) {
-          img.src = thumbUrl(data.result.imagePath) + '?t=' + Date.now();
+        if (img && data.result.thumbnailUrl) {
+          img.src = data.result.thumbnailUrl + '?t=' + Date.now();
         }
         currentRefId = data.result.refId;
       } else {
@@ -209,10 +214,14 @@
   var approveActive = false;
   document.getElementById('btn-approve-toggle').addEventListener('click', function() {
     var grid = document.getElementById('gallery-grid');
+    var selectAllBtn = document.getElementById('btn-select-all');
+
     if (!approveActive) {
       approveActive = true;
       this.textContent = '선택 종료';
       this.className = this.className.replace('bg-[#353437] hover:bg-[#4a4455]', 'bg-[#7c3aed] hover:bg-[#6d28d9]');
+      selectAllBtn.classList.remove('hidden');
+
       ApprovalMode.init(grid, {
         charId: CHAR_ID,
         onApproved: function(refIds, approved) {
@@ -229,8 +238,66 @@
       approveActive = false;
       this.textContent = '선택 승인';
       this.className = this.className.replace('bg-[#7c3aed] hover:bg-[#6d28d9]', 'bg-[#353437] hover:bg-[#4a4455]');
+      selectAllBtn.classList.add('hidden');
       ApprovalMode.destroy();
     }
+  });
+
+  // 전체 선택 버튼
+  document.getElementById('btn-select-all').addEventListener('click', function() {
+    if (approveActive && typeof ApprovalMode !== 'undefined') {
+      ApprovalMode.selectAll();
+    }
+  });
+
+  // 전체 승인 버튼
+  document.getElementById('btn-approve-all').addEventListener('click', function() {
+    var grid = document.getElementById('gallery-grid');
+    var cards = grid.querySelectorAll('[data-ref-id]');
+    var refIds = [];
+    cards.forEach(function(card) {
+      var rid = card.dataset.refId;
+      if (rid) refIds.push(Number(rid));
+    });
+
+    if (refIds.length === 0) {
+      alert('승인할 이미지가 없습니다.');
+      return;
+    }
+
+    if (!confirm(refIds.length + '장의 이미지를 모두 승인하시겠습니까?')) return;
+
+    var btn = this;
+    var originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '처리 중...';
+
+    fetch('/api/characters/' + encodeURIComponent(CHAR_ID) + '/ref-images/approve-batch', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refIds: refIds, approved: true }),
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        if (typeof showToast === 'function') showToast('전체 승인 완료: ' + data.updated + '장', 'success');
+        // 배지 업데이트
+        cards.forEach(function(card) {
+          card.dataset.approved = '1';
+          var badge = card.querySelector('.approval-badge');
+          if (badge) updateBadge(badge, true);
+        });
+      } else {
+        if (typeof showToast === 'function') showToast('전체 승인 실패: ' + (data.error || '오류'), 'error');
+      }
+    })
+    .catch(function(err) {
+      if (typeof showToast === 'function') showToast('전체 승인 실패: ' + err.message, 'error');
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    });
   });
 
   loadGallery();

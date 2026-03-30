@@ -18,6 +18,7 @@ import {
   insertMasterScript,
   updateMasterScript as updateMasterScriptQuery,
   listEpisodesByScript,
+  deleteMasterScript as deleteMasterScriptQuery,
 } from '../../db/queries/master-script-queries';
 import { logger } from '../../common/logger';
 import type {
@@ -120,6 +121,27 @@ export async function updateMasterScript(
       worldSetting: req.worldSetting !== undefined ? (req.worldSetting ?? null) : row.WORLD_SETTING,
     });
     logger.info('마스터 스크립트 수정 완료', { scriptId });
+  } finally {
+    await conn.close();
+  }
+}
+
+// ─── 마스터 스크립트 삭제 ────────────────────────────────
+
+/** 마스터 스크립트를 삭제한다. 연관된 에피소드가 있으면 실패할 수 있다. */
+export async function deleteMasterScript(scriptId: number): Promise<void> {
+  const conn = await getConnection();
+  try {
+    const row = await findMasterScriptById(conn, scriptId);
+    if (!row) throw new Error(`마스터 스크립트를 찾을 수 없습니다: ${scriptId}`);
+
+    const episodeRows = await listEpisodesByScript(conn, scriptId);
+    if (episodeRows.length > 0) {
+      throw new Error(`에피소드가 포함된 마스터 대본은 삭제할 수 없습니다. 에피소드 수: ${episodeRows.length}`);
+    }
+
+    await deleteMasterScriptQuery(conn, scriptId);
+    logger.info('마스터 스크립트 삭제 완료', { scriptId });
   } finally {
     await conn.close();
   }

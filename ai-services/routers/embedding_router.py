@@ -67,6 +67,21 @@ async def compare_faces(request: FaceCompareRequest) -> FaceCompareResponse:
     )
 
 
+@router.post("/face/bbox")
+async def face_bounding_box(request: ImageEmbeddingRequest) -> JSONResponse:
+    """얼굴 바운딩 박스 추출 (패딩 포함, 크롭용)."""
+    from services.embedding.face_embedder import get_face_bounding_box
+
+    bbox = get_face_bounding_box(request.image_path)
+    if bbox is None:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "얼굴을 검출할 수 없습니다"},
+        )
+
+    return JSONResponse(content=bbox)
+
+
 @router.post("/image", status_code=501)
 async def embed_image(request: ImageEmbeddingRequest) -> JSONResponse:
     """이미지 임베딩 생성 (미구현)."""

@@ -14,7 +14,8 @@ import { logger } from '../../common/logger';
 
 export const LIST_LOCATIONS = `
   SELECT location_id, name, name_en, region_id, location_type,
-         prompt_base, description, first_ep, created_at
+         prompt_base, description, first_ep, created_at,
+         CASE WHEN anchor_thumbnail IS NOT NULL THEN 1 ELSE 0 END AS HAS_ANCHOR
     FROM locations
    ORDER BY created_at DESC
 `;
@@ -60,6 +61,7 @@ export interface LocationRow {
   PROMPT_BASE: string | null;
   DESCRIPTION: string | null;
   FIRST_EP: number | null;
+  HAS_ANCHOR: number;
   CREATED_AT: Date;
 }
 

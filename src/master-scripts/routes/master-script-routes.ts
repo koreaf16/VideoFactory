@@ -18,6 +18,7 @@ import {
   getMasterScriptDetail,
   listAllMasterScripts,
   updateMasterScript,
+  deleteMasterScript,
 } from '../services/master-script-service';
 import { logger } from '../../common/logger';
 import type {
@@ -60,6 +61,10 @@ router.get(
   '/:scriptId',
   asyncHandler(async (req: Request, res: Response) => {
     const scriptId = Number(req.params.scriptId);
+    if (isNaN(scriptId)) {
+      res.status(400).json({ success: false, error: '유효하지 않은 스크립트 ID' });
+      return;
+    }
     try {
       const detail = await getMasterScriptDetail(scriptId);
       res.json({ success: true, data: detail });
@@ -80,6 +85,10 @@ router.put(
   '/:scriptId',
   asyncHandler(async (req: Request, res: Response) => {
     const scriptId = Number(req.params.scriptId);
+    if (isNaN(scriptId)) {
+      res.status(400).json({ success: false, error: '유효하지 않은 스크립트 ID' });
+      return;
+    }
     const body = req.body as UpdateMasterScriptRequest;
     try {
       await updateMasterScript(scriptId, body);
@@ -88,6 +97,34 @@ router.put(
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('찾을 수 없습니다')) {
         res.status(404).json({ success: false, error: '마스터 스크립트를 찾을 수 없습니다' });
+        return;
+      }
+      throw err;
+    }
+  }),
+);
+
+// ─── 마스터 스크립트 삭제 ────────────────────────────────
+
+router.delete(
+  '/:scriptId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const scriptId = Number(req.params.scriptId);
+    if (isNaN(scriptId)) {
+      res.status(400).json({ success: false, error: '유효하지 않은 스크립트 ID' });
+      return;
+    }
+    try {
+      await deleteMasterScript(scriptId);
+      res.json({ success: true });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('찾을 수 없습니다')) {
+        res.status(404).json({ success: false, error: '마스터 스크립트를 찾을 수 없습니다' });
+        return;
+      }
+      if (msg.includes('삭제할 수 없습니다')) {
+        res.status(400).json({ success: false, error: msg });
         return;
       }
       throw err;

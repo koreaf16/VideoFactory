@@ -58,16 +58,18 @@ export const UPDATE_DATASET_IMAGE_COUNT = `
 export const INSERT_DATASET_IMAGE = `
   INSERT INTO lora_dataset_images
     (dataset_image_id, dataset_id, source_type, source_id,
-     image_path, pose_tag, approved)
+     image_blob, thumbnail_blob, face_bbox, face_embedding,
+     pose_tag, approved)
   VALUES
     (:datasetImageId, :datasetId, :sourceType, :sourceId,
-     :imagePath, :poseTag, :approved)
+     :imageBlob, :thumbnailBlob, :faceBbox, :faceEmbedding,
+     :poseTag, :approved)
 `;
 
 export const LIST_DATASET_IMAGES = `
   SELECT dataset_image_id, dataset_id, source_type, source_id,
-         image_path, pose_tag, caption_auto, caption_edited,
-         approved, created_at
+         image_blob, pose_tag, caption_auto, caption_edited,
+         face_bbox, approved, created_at
     FROM lora_dataset_images
    WHERE dataset_id = :datasetId
    ORDER BY created_at
@@ -85,21 +87,16 @@ export const UPDATE_CAPTION_EDITED = `
    WHERE dataset_image_id = :datasetImageId
 `;
 
-// ─── lora_training_jobs SQL ────────────────────────────
-
 export const INSERT_TRAINING_JOB = `
   INSERT INTO lora_training_jobs
-    (job_id, dataset_id, char_id, status, config,
-     total_steps, started_at)
+    (job_id, dataset_id, char_id, status, config, total_steps)
   VALUES
-    (:jobId, :datasetId, :charId, :status, :config,
-     :totalSteps, SYSTIMESTAMP)
+    (:jobId, :datasetId, :charId, :status, :config, :totalSteps)
 `;
 
 export const GET_TRAINING_JOB = `
   SELECT job_id, dataset_id, char_id, status, config,
-         current_step, total_steps, started_at,
-         completed_at, error_message
+         current_step, total_steps, started_at, completed_at, error_message
     FROM lora_training_jobs
    WHERE job_id = :jobId
 `;
@@ -113,10 +110,7 @@ export const UPDATE_TRAINING_PROGRESS = `
 export const UPDATE_TRAINING_STATUS = `
   UPDATE lora_training_jobs
      SET status = :status,
-         completed_at = CASE
-           WHEN :status IN ('completed', 'failed') THEN SYSTIMESTAMP
-           ELSE completed_at
-         END,
+         completed_at = CASE WHEN :status IN ('completed', 'failed') THEN SYSTIMESTAMP ELSE completed_at END,
          error_message = :errorMessage
    WHERE job_id = :jobId
 `;
@@ -165,15 +159,15 @@ export const UPDATE_CHARACTER_LORA = `
 export const INSERT_TEST_IMAGE = `
   INSERT INTO lora_test_images
     (test_image_id, checkpoint_id, prompt_text, seed,
-     lora_strength, image_path)
+     lora_strength, image_blob, thumbnail_blob)
   VALUES
     (:testImageId, :checkpointId, :promptText, :seed,
-     :loraStrength, :imagePath)
+     :loraStrength, :imageBlob, :thumbnailBlob)
 `;
 
 export const LIST_TEST_IMAGES = `
   SELECT test_image_id, checkpoint_id, prompt_text, seed,
-         lora_strength, image_path, created_at
+         lora_strength, image_blob, created_at
     FROM lora_test_images
    WHERE checkpoint_id = :checkpointId
    ORDER BY created_at
@@ -196,7 +190,9 @@ export interface DatasetImageRow {
   DATASET_ID: string;
   SOURCE_TYPE: string;
   SOURCE_ID: string;
-  IMAGE_PATH: string;
+  IMAGE_BLOB: Buffer;
+  THUMBNAIL_BLOB?: Buffer;
+  FACE_BBOX: string | null;
   POSE_TAG: string | null;
   CAPTION_AUTO: string | null;
   CAPTION_EDITED: string | null;
@@ -232,6 +228,7 @@ export interface TestImageRow {
   PROMPT_TEXT: string;
   SEED: number;
   LORA_STRENGTH: number;
-  IMAGE_PATH: string;
+  IMAGE_BLOB: Buffer;
+  THUMBNAIL_BLOB?: Buffer;
   CREATED_AT: Date;
 }

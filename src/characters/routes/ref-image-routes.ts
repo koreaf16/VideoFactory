@@ -11,7 +11,7 @@ import path from 'path';
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../../common/middleware/async-handler';
 import { getConnection } from '../../db/connection';
-import { getRefImage, getAnchorPath, DELETE_REF_IMAGE } from '../../db/queries/character-queries';
+import { getRefImage, getAnchorBlob, DELETE_REF_IMAGE } from '../../db/queries/character-queries';
 import { DERIVATIVE_PRESETS } from '../services/derivative-presets';
 import type { DerivativePreset } from '../services/derivative-presets';
 import { generateOneImage } from '../services/derivative-image';
@@ -38,8 +38,10 @@ router.post(
 
       const charId = refImage.CHAR_ID;
       const poseTag = refImage.POSE_TAG ?? '';
-      const anchorPath = await getAnchorPath(conn, charId);
-      if (!anchorPath) {
+      
+      const anchorBlob = await getAnchorBlob(conn, charId);
+
+      if (!anchorBlob) {
         res.status(400).json({ success: false, error: '앵커 이미지를 찾을 수 없습니다' });
         return;
       }
@@ -50,29 +52,21 @@ router.post(
         return;
       }
 
-      // 기존 파일 삭제
-      if (fs.existsSync(refImage.IMAGE_PATH)) fs.unlinkSync(refImage.IMAGE_PATH);
-      const thumbPath = path.join(
-        path.dirname(refImage.IMAGE_PATH),
-        `thumb_${path.basename(refImage.IMAGE_PATH)}`,
-      );
-      if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
-
       // 프롬프트 조합
       const combinedPreset: DerivativePreset = {
         ...preset,
         promptSuffix: buildRegenPrompt(preset.promptSuffix, modifyPrompt ?? ''),
       };
 
-      // 출력 디렉토리: 기존 이미지와 같은 디렉토리
-      const outDir = path.dirname(refImage.IMAGE_PATH);
+      // 출력 디렉토리: 임시 디렉토리 사용 (파일 저장은 부수 효과)
+      const outDir = path.resolve('exports/tmp');
       await ensureDir(outDir);
 
       // 임시 job 객체 생성 (generateOneImage가 요구)
       const tempJob = {
         jobId: `regen_${refId}`,
         charId,
-        anchorPath,
+        anchorBlob,
         status: 'generating' as const,
         total: 1,
         completed: 0,
@@ -83,7 +77,7 @@ router.post(
         results: [],
       };
 
-      const newResult = await generateOneImage(tempJob, combinedPreset, '', outDir, () => {});
+      const newResult = await generateOneImage(tempJob, combinedPreset, '', outDir, () => {}, true);
       if (!newResult) {
         res.status(500).json({ success: false, error: '이미지 생성 실패' });
         return;
@@ -96,7 +90,8 @@ router.post(
         success: true,
         result: {
           refId: newResult.refId,
-          imagePath: newResult.imagePath,
+          imageUrl: `/api/images/char_ref_images/${newResult.refId}`,
+          thumbnailUrl: `/api/images/char_ref_images/${newResult.refId}?thumbnail=true`,
           label: newResult.label,
           prompt: newResult.prompt,
           seed: newResult.seed,

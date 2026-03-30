@@ -11,25 +11,20 @@ import path from 'path';
 import { getConnection } from '../../db/connection';
 import { compareFaces } from '../../python-api/endpoints/embedding-api';
 import { logger } from '../../common/logger';
+import { restoreImageFromBlob } from '../../common/utils/image-utils';
 import {
   FACE_SIMILARITY_THRESHOLD,
   type DerivativeResult,
   type DerivativeJob,
 } from './derivative-presets';
 
-/** 비유사 이미지 파일 + DB 삭제 */
+/** 비유사 이미지 DB 삭제 */
 async function deleteDissimilarImages(
   job: DerivativeJob,
   toDelete: DerivativeResult[],
 ): Promise<void> {
   for (const result of toDelete) {
     try {
-      if (fs.existsSync(result.imagePath)) fs.unlinkSync(result.imagePath);
-      const thumbPath = path.join(
-        path.dirname(result.imagePath),
-        `thumb_${path.basename(result.imagePath)}`,
-      );
-      if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
       if (result.refId) {
         const conn = await getConnection();
         try {
@@ -45,7 +40,7 @@ async function deleteDissimilarImages(
       job.deleted += 1;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      logger.warn('비유사 이미지 삭제 실패', { path: result.imagePath, error: msg });
+      logger.warn('비유사 이미지 삭제 실패', { refId: result.refId, error: msg });
     }
   }
 }
@@ -66,11 +61,22 @@ export async function filterAndDeleteDissimilar(
   job.currentStep = `얼굴 유사도 분석 중... (${toFilter.length}장, ${skipped.length}장 스킵)`;
   emitProgress(job);
 
+  // 1. BLOB들을 임시 파일로 복원
+  const tempAnchorPath = await restoreImageFromBlob(job.anchorBlob, `anchor_filter_${job.charId}`);
+  const tempPaths: string[] = [];
+  const pathToResult = new Map<string, DerivativeResult>();
+
+  for (const res of toFilter) {
+    const p = await restoreImageFromBlob(res.imageBlob, `deriv_filter_${job.charId}`);
+    tempPaths.push(p);
+    pathToResult.set(p, res);
+  }
+
   let compareResult;
   try {
     compareResult = await compareFaces(
-      job.anchorPath,
-      toFilter.map((r) => r.imagePath),
+      tempAnchorPath,
+      tempPaths,
       FACE_SIMILARITY_THRESHOLD,
     );
   } catch (err: unknown) {
@@ -79,13 +85,15 @@ export async function filterAndDeleteDissimilar(
     return batchResults;
   }
 
-  const similarPaths = new Set(compareResult.results.filter((r) => r.similar).map((r) => r.path));
   const kept: DerivativeResult[] = [...skipped];
   const toDelete: DerivativeResult[] = [];
 
-  for (const result of toFilter) {
-    if (similarPaths.has(result.imagePath)) {
-      result.distance = compareResult.results.find((r) => r.path === result.imagePath)?.distance;
+  for (const item of compareResult.results) {
+    const result = pathToResult.get(item.path);
+    if (!result) continue;
+
+    if (item.similar) {
+      result.distance = item.distance;
       kept.push(result);
     } else {
       toDelete.push(result);
@@ -94,7 +102,7 @@ export async function filterAndDeleteDissimilar(
 
   await deleteDissimilarImages(job, toDelete);
 
-  logger.info('유사도 필터링 완료', {
+  logger.info('유사도 필터링 완료 (DB 전용)', {
     jobId: job.jobId,
     batch: job.batch,
     generated: batchResults.length,

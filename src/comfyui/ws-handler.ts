@@ -8,19 +8,20 @@
 
 import { config } from '../config';
 import { logger } from '../common/logger';
-import type { ImageResult, ProgressUpdate } from './types/comfyui.types';
+import type { ImageResult, ProgressUpdate, ComfyUIResult } from './types/comfyui.types';
 
 type ProgressCallback = (update: ProgressUpdate) => void;
 
 export interface PendingResult {
-  resolve: (images: ImageResult[]) => void;
+  resolve: (result: ComfyUIResult) => void;
   reject: (error: Error) => void;
   images: ImageResult[];
+  texts: string[];
   abortController?: AbortController;
 }
 
 /** history API에서 최종 결과를 가져온다. */
-export async function fetchHistoryImages(promptId: string): Promise<ImageResult[]> {
+export async function fetchHistoryResults(promptId: string): Promise<ComfyUIResult> {
   const url = `${config.comfyui.httpUrl}/history/${promptId}`;
   const res = await fetch(url, {
     method: 'GET',
@@ -31,16 +32,20 @@ export async function fetchHistoryImages(promptId: string): Promise<ImageResult[
   const history = (await res.json()) as Record<
     string,
     {
-      outputs?: Record<string, { images?: ImageResult[] }>;
+      outputs?: Record<string, { images?: ImageResult[]; text?: string[] }>;
     }
   >;
   const entry = history[promptId];
-  if (!entry?.outputs) return [];
+  if (!entry?.outputs) return { images: [], texts: [] };
+  
   const images: ImageResult[] = [];
+  const texts: string[] = [];
+  
   for (const nodeOutput of Object.values(entry.outputs)) {
     if (nodeOutput.images) images.push(...nodeOutput.images);
+    if (nodeOutput.text) texts.push(...nodeOutput.text);
   }
-  return images;
+  return { images, texts };
 }
 
 /** WebSocket 메시지를 처리한다. */
@@ -54,10 +59,13 @@ export function handleWsMessage(
   if (msg.type === 'executed') {
     const raw = msg as unknown as Record<string, unknown>;
     const promptId = raw['prompt_id'] as string | undefined;
-    const output = raw['output'] as { images?: ImageResult[] } | undefined;
-    if (promptId && output?.images) {
+    const output = raw['output'] as { images?: ImageResult[]; text?: string[] } | undefined;
+    if (promptId && output) {
       const pending = pendingResults.get(promptId);
-      if (pending) pending.images.push(...output.images);
+      if (pending) {
+        if (output.images) pending.images.push(...output.images);
+        if (output.text) pending.texts.push(...output.text);
+      }
     }
   }
 
@@ -65,9 +73,9 @@ export function handleWsMessage(
     const pending = pendingResults.get(msg.data.prompt_id);
     if (pending) {
       pendingResults.delete(msg.data.prompt_id);
-      fetchHistoryImages(msg.data.prompt_id)
-        .then((images) => pending.resolve(images))
-        .catch(() => pending.resolve(pending.images));
+      fetchHistoryResults(msg.data.prompt_id)
+        .then((res) => pending.resolve(res))
+        .catch(() => pending.resolve({ images: pending.images, texts: pending.texts }));
       logger.info('워크플로우 실행 완료', { promptId: msg.data.prompt_id });
     }
   }

@@ -24,7 +24,7 @@ export interface LocationPreset {
 
 export interface LocationDerivResult {
   refId?: number;
-  imagePath: string;
+  imagePath?: string;
   label: string;
   angle: string;
   prompt: string;
@@ -34,7 +34,7 @@ export interface LocationDerivResult {
 export interface LocationDerivJob {
   jobId: string;
   locationId: string;
-  anchorPath: string;
+  anchorBlob: Buffer;
   /** 장소 설명 프롬프트 — txt2img 앵글 변형 생성에 사용 */
   promptBase: string;
   status: 'preparing' | 'generating' | 'completed' | 'failed' | 'stopped';

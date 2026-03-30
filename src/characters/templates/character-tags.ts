@@ -58,6 +58,29 @@ export function buildCharacterTags(appearance: CharacterAppearance): string {
   return parts.join(', ');
 }
 
+// ─── PuLID 모드용 외모 태그 (얼굴 묘사 제외) ─────────────────
+
+/**
+ * PuLID 레퍼런스 모드용 태그 빌더.
+ * 얼굴 관련 태그(머리색, 눈색, 피부톤)를 제외하고
+ * 의상/체형/악세서리만 반환하여 PuLID 얼굴 반영을 방해하지 않는다.
+ */
+export function buildCharacterTagsForPulid(appearance: CharacterAppearance): string {
+  const parts: string[] = ['1girl'];
+
+  if (appearance.outfit) {
+    parts.push(appearance.outfit);
+  }
+  if (appearance.height) {
+    parts.push(appearance.height);
+  }
+  if (appearance.accessories) {
+    parts.push(appearance.accessories);
+  }
+
+  return parts.join(', ');
+}
+
 // ─── 표정 태그 변환 ────────────────────────────────────────
 
 /**

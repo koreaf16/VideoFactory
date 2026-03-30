@@ -22,9 +22,19 @@ export const GLOBAL_NEGATIVE: string =
 
 // ─── 앵커/마스터 이미지 전용 스타일 (flat lighting, 증명사진) ──
 
+/**
+ * K-pop 아이돌 스타일 앵커 프롬프트.
+ *
+ * 추천 프롬프트 예시 (charTags에 캐릭터 외모 반영):
+ *   RAW photo, 1girl, 20 years old, beautiful Korean kpop idol,
+ *   V-line jawline, glass skin, dewy complexion, big round eyes,
+ *   double eyelids, aegyo sal, gradient cherry lips, straight eyebrows,
+ *   long flowing black hair, see-through bangs, Korean idol makeup,
+ *   [의상 묘사], studio lighting, gray background, sharp focus, 8k, photorealistic
+ */
 export const ANCHOR_STYLE = {
   positive:
-    'photorealistic, ultra realistic, 8k uhd, RAW photo, sharp focus, flat studio lighting, soft even light, no harsh shadows, extremely bright and clear, plain solid light gray background, highly detailed skin texture, visible pores, distinct facial features, 85mm lens, professional photography',
+    'RAW photo, sharp focus, 8k, photorealistic, highly detailed skin texture, visible pores, distinct facial features, 85mm lens, professional photography',
   negative:
-    'cinematic lighting, dramatic shadows, rim lighting, neon lights, backlight, sun flare, golden hour, warm light, colored lighting, lens flare, volumetric light, god rays, dappled light, bokeh, depth of field, blurry background',
+    'ugly, deformed, bad anatomy, bad proportions, rough skin, blemish, acne, wide jaw, square jaw, pale lips, thick eyebrows, oily skin, low quality, blurry, disfigured, cinematic lighting, dramatic shadows, rim lighting, neon lights, backlight, sun flare, golden hour, warm light, colored lighting, lens flare, volumetric light, god rays, bokeh, depth of field, blurry background',
 };

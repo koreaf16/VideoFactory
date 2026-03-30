@@ -98,7 +98,7 @@ router.get(
         data: rows.map((r) => ({
           refId: r.REF_ID,
           locationId: r.LOCATION_ID,
-          imagePath: r.IMAGE_PATH,
+          imageUrl: `/api/images/location_ref_images/${r.REF_ID}`,
           angle: r.ANGLE,
           approved: r.APPROVED === 1,
           createdAt: r.CREATED_AT,
@@ -157,13 +157,6 @@ router.post(
         return;
       }
 
-      if (ref.IMAGE_PATH && fs.existsSync(ref.IMAGE_PATH)) fs.unlinkSync(ref.IMAGE_PATH);
-      const thumbP = path.join(
-        path.dirname(ref.IMAGE_PATH),
-        `thumb_${path.basename(ref.IMAGE_PATH)}`,
-      );
-      if (fs.existsSync(thumbP)) fs.unlinkSync(thumbP);
-
       const seed = Math.floor(Math.random() * 999999999);
 
       // Upload depth/normal maps to ComfyUI
@@ -203,24 +196,21 @@ router.post(
 
       const imageUrl = `${config.comfyui.httpUrl}/view?filename=${images[0].filename}&subfolder=${images[0].subfolder ?? ''}&type=${images[0].type ?? 'output'}`;
       const buf = Buffer.from(await (await fetch(imageUrl)).arrayBuffer());
-      const outDir = path.dirname(ref.IMAGE_PATH);
-      await ensureDir(outDir);
-      const filename = `${ref.LOCATION_ID}_${preset.angle}_${seed}.png`;
-      const imagePath = path.join(outDir, filename);
-      await writeFileBuffer(imagePath, buf);
-      await writeFileBuffer(path.join(outDir, `thumb_${filename}`), await createThumbnail(buf));
+      const thumb = await createThumbnail(buf);
 
+      // Delete old record and insert new one with image BLOB
       await conn.execute(
         'DELETE FROM location_ref_images WHERE ref_id = :refId',
         { refId },
         { autoCommit: true },
       );
       const ins = await conn.execute(
-        `INSERT INTO location_ref_images (location_id, image_path, angle, approved)
-         VALUES (:lid, :ip, :angle, 1) RETURNING ref_id INTO :newId`,
+        `INSERT INTO location_ref_images (location_id, image_blob, thumbnail_blob, angle, approved)
+         VALUES (:lid, :ib, :tb, :angle, 1) RETURNING ref_id INTO :newId`,
         {
           lid: ref.LOCATION_ID,
-          ip: imagePath,
+          ib: buf,
+          tb: thumb,
           angle: preset.angle,
           newId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
         },
@@ -230,7 +220,7 @@ router.post(
 
       res.json({
         success: true,
-        result: { refId: newRefId, imagePath, label: preset.label, angle: preset.angle, seed },
+        result: { refId: newRefId, imageUrl: `/api/images/location_ref_images/${newRefId}`, label: preset.label, angle: preset.angle, seed },
       });
     } finally {
       await conn.close();

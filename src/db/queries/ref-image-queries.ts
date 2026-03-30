@@ -12,7 +12,7 @@ import { logger } from '../../common/logger';
 // ─── SQL 상수 ────────────────────────────────────────────
 
 export const LIST_REF_IMAGES_BY_CHAR = `
-  SELECT ref_id, char_id, image_path, pose_tag,
+  SELECT ref_id, char_id, image_blob, pose_tag,
          quality_score, approved, created_at
     FROM char_ref_images
    WHERE char_id = :charId AND approved = 1
@@ -20,7 +20,7 @@ export const LIST_REF_IMAGES_BY_CHAR = `
 `;
 
 export const LIST_ALL_REF_IMAGES_BY_CHAR = `
-  SELECT ref_id, char_id, image_path, pose_tag,
+  SELECT ref_id, char_id, image_blob, pose_tag,
          quality_score, approved, created_at
     FROM char_ref_images
    WHERE char_id = :charId
@@ -28,15 +28,9 @@ export const LIST_ALL_REF_IMAGES_BY_CHAR = `
 `;
 
 export const GET_REF_IMAGE = `
-  SELECT ref_id, char_id, image_path, pose_tag,
+  SELECT ref_id, char_id, image_blob, pose_tag,
          quality_score, approved, created_at
     FROM char_ref_images
-   WHERE ref_id = :refId
-`;
-
-export const UPDATE_REF_IMAGE_PATH = `
-  UPDATE char_ref_images
-     SET image_path = :imagePath
    WHERE ref_id = :refId
 `;
 
@@ -44,10 +38,19 @@ export const DELETE_REF_IMAGE = `
   DELETE FROM char_ref_images WHERE ref_id = :refId
 `;
 
-export const GET_ANCHOR_PATH = `
-  SELECT image_path
+export const GET_ANCHOR_BLOB = `
+  SELECT image_blob
     FROM char_candidates
    WHERE char_id = :charId AND is_anchor = 1
+   ORDER BY candidate_id DESC
+   FETCH FIRST 1 ROWS ONLY
+`;
+
+export const GET_ANCHOR_ID = `
+  SELECT candidate_id
+    FROM char_candidates
+   WHERE char_id = :charId AND is_anchor = 1
+   ORDER BY candidate_id DESC
    FETCH FIRST 1 ROWS ONLY
 `;
 
@@ -57,12 +60,24 @@ export const COUNT_REF_IMAGES_BY_CHAR = `
    WHERE char_id = :charId AND approved = 1
 `;
 
+export const LIST_CUSTOM_REF_IMAGES = `
+  SELECT ref_id, image_blob, pose_tag
+    FROM char_ref_images
+   WHERE char_id = :charId AND is_custom = 1
+   ORDER BY created_at ASC
+`;
+
+export const DELETE_NON_CUSTOM_REF_IMAGES = `
+  DELETE FROM char_ref_images
+   WHERE char_id = :charId AND (is_custom = 0 OR is_custom IS NULL)
+`;
+
 // ─── 타입 ────────────────────────────────────────────────
 
 export interface RefImageRow {
   REF_ID: number;
   CHAR_ID: string;
-  IMAGE_PATH: string;
+  IMAGE_BLOB: Buffer;
   POSE_TAG: string | null;
   QUALITY_SCORE: number | null;
   APPROVED: number;
@@ -127,16 +142,28 @@ export async function getRefImage(
   return result.rows?.[0];
 }
 
-export async function getAnchorPath(
+export async function getAnchorBlob(
   conn: oracledb.Connection,
   charId: string,
-): Promise<string | null> {
-  const result = await conn.execute<{ IMAGE_PATH: string }>(
-    GET_ANCHOR_PATH,
+): Promise<Buffer | null> {
+  const result = await conn.execute<{ IMAGE_BLOB: Buffer }>(
+    GET_ANCHOR_BLOB,
     { charId },
     { outFormat: oracledb.OUT_FORMAT_OBJECT },
   );
-  return result.rows?.[0]?.IMAGE_PATH ?? null;
+  return result.rows?.[0]?.IMAGE_BLOB ?? null;
+}
+
+export async function getAnchorId(
+  conn: oracledb.Connection,
+  charId: string,
+): Promise<number | null> {
+  const result = await conn.execute<{ CANDIDATE_ID: number }>(
+    GET_ANCHOR_ID,
+    { charId },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT },
+  );
+  return result.rows?.[0]?.CANDIDATE_ID ?? null;
 }
 
 export async function countRefImagesByChar(
@@ -150,3 +177,4 @@ export async function countRefImagesByChar(
   );
   return result.rows?.[0]?.CNT ?? 0;
 }
+

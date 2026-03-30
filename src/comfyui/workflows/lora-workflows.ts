@@ -25,7 +25,7 @@ import type { LoraTrainingConfig } from '../../characters/types/lora.types';
 
 // ─── 상수 ────────────────────────────────────────────
 
-const KONTEXT_MODEL = 'flux1-kontext-dev.safetensors';
+const KONTEXT_MODEL = 'flux1-dev-kontext_fp8_scaled.safetensors';
 
 const INFERENCE_DEFAULTS = {
   vae: 'ae.safetensors',
@@ -33,8 +33,8 @@ const INFERENCE_DEFAULTS = {
   t5xxl: 't5xxl_fp8_e4m3fn.safetensors',
   width: 1024,
   height: 1024,
-  steps: 8,
-  cfg: 2.5,
+  steps: 24,
+  cfg: 3.0,
   sampler: 'euler',
   scheduler: 'normal',
   loraStrength: 0.7,

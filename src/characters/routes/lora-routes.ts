@@ -22,6 +22,8 @@ import {
   datasetEvents,
 } from '../services/lora-dataset';
 import { startTraining, getTrainingJob, trainingEvents } from '../services/lora-training';
+import { getConnection } from '../../db/connection';
+import { listRefImagesByChar } from '../../db/queries/ref-image-queries';
 import { logger } from '../../common/logger';
 import type { CreateDatasetRequest, StartTrainingRequest } from '../types/lora.types';
 import loraEvalRoutes from './lora-eval-routes';
@@ -32,6 +34,29 @@ const router = Router();
 router.use('/', loraEvalRoutes);
 
 // ─── 데이터셋 ─────────────────────────────────────────────
+
+router.get(
+  '/:charId/lora/images',
+  asyncHandler(async (req: Request, res: Response) => {
+    const charId = String(req.params.charId);
+    const conn = await getConnection();
+    try {
+      const images = await listRefImagesByChar(conn, charId);
+      res.json({
+        success: true,
+        data: images.map((img) => ({
+          id: img.REF_ID,
+          imageUrl: `/api/images/char_ref_images/${img.REF_ID}`,
+          thumbnailUrl: `/api/images/char_ref_images/${img.REF_ID}?thumbnail=true`,
+          label: img.POSE_TAG,
+          approved: img.APPROVED === 1,
+        })),
+      });
+    } finally {
+      await conn.close();
+    }
+  }),
+);
 
 router.post(
   '/:charId/lora/dataset',

@@ -14,6 +14,7 @@ export interface Location {
   readonly promptBase?: string;
   readonly description?: string;
   readonly firstEp?: number;
+  readonly anchor_id?: number;
   readonly loraPath?: string;
   readonly createdAt: Date;
 }

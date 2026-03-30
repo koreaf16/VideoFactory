@@ -24,7 +24,7 @@ import { generateAndSaveBlenderScript } from '../services/blender-script-generat
 import { renderMaps, validateResults, getMapPaths } from '../services/blender-renderer';
 import { CAMERA_ANGLES } from '../templates/blender-prompt';
 import { logger } from '../../common/logger';
-import type { LocCandidateRow } from '../../db/queries/location-candidate-queries';
+import { writeFileBuffer, ensureDir } from '../../common/utils/file-utils';
 
 const router = Router();
 
@@ -215,9 +215,9 @@ router.post(
 
     const conn = await getConnection();
     try {
-      // 1. 후보 이미지 경로 조회
-      const result = await conn.execute<LocCandidateRow>(
-        'SELECT candidate_id, location_id, image_path FROM location_candidates WHERE candidate_id = :candidateId',
+      // 1. 후보 이미지 BLOB 조회
+      const result = await conn.execute<{ CANDIDATE_ID: number; LOCATION_ID: string; IMAGE_BLOB: Buffer }>(
+        'SELECT candidate_id, location_id, image_blob FROM location_candidates WHERE candidate_id = :candidateId',
         { candidateId },
         { outFormat: oracledb.OUT_FORMAT_OBJECT },
       );
@@ -233,19 +233,17 @@ router.post(
         return;
       }
 
-      if (!candidate.IMAGE_PATH || !fs.existsSync(candidate.IMAGE_PATH)) {
-        res.status(400).json({ success: false, error: '후보 이미지 파일을 찾을 수 없습니다' });
+      if (!candidate.IMAGE_BLOB) {
+        res.status(400).json({ success: false, error: '후보 이미지를 찾을 수 없습니다' });
         return;
       }
 
-      // 2. style_anchor.png 복사
+      // 2. style_anchor.png로 저장
       const destDir = path.join('uploads', 'locations', locationId);
-      if (!fs.existsSync(destDir)) {
-        fs.mkdirSync(destDir, { recursive: true });
-      }
+      await ensureDir(destDir);
       const destPath = path.join(destDir, 'style_anchor.png');
-      fs.copyFileSync(candidate.IMAGE_PATH, destPath);
-      logger.info('스타일 앵커 파일 복사 완료', { locationId, candidateId, destPath });
+      await writeFileBuffer(destPath, candidate.IMAGE_BLOB);
+      logger.info('스타일 앵커 저장 완료', { locationId, candidateId, destPath });
 
       // 3. location_type 업데이트
       await conn.execute(

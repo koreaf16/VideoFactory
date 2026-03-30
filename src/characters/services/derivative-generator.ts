@@ -60,14 +60,14 @@ const EXPORTS_BASE = path.resolve('exports/derivatives');
 /** 파생 이미지 생성을 시작한다. 목표 수량까지 반복 생성. */
 export function startDerivativeGeneration(
   charId: string,
-  anchorPath: string,
+  anchorBlob: Buffer,
   basePrompt: string,
 ): string {
   const jobId = generateJobId('deriv');
   const job: DerivativeJob = {
     jobId,
     charId,
-    anchorPath,
+    anchorBlob,
     status: 'preparing',
     total: DERIVATIVE_PRESETS.length,
     completed: 0,
@@ -134,27 +134,17 @@ export async function regenerateSingleDerivative(
   const existingIdx = job.results.findIndex((r) => r.label === label);
   const existing = existingIdx >= 0 ? job.results[existingIdx] : undefined;
 
-  // 기존 파일 삭제
-  if (existing) {
-    if (fs.existsSync(existing.imagePath)) fs.unlinkSync(existing.imagePath);
-    const thumbPath = path.join(
-      path.dirname(existing.imagePath),
-      `thumb_${path.basename(existing.imagePath)}`,
-    );
-    if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
-
-    // 기존 DB 레코드 삭제
-    if (existing.refId) {
-      const conn = await getConnection();
-      try {
-        await conn.execute(
-          'DELETE FROM char_ref_images WHERE ref_id = :refId',
-          { refId: existing.refId },
-          { autoCommit: true },
-        );
-      } finally {
-        await conn.close();
-      }
+  // 기존 DB 레코드 삭제 (파일은 추후 일괄 정리)
+  if (existing?.refId) {
+    const conn = await getConnection();
+    try {
+      await conn.execute(
+        'DELETE FROM char_ref_images WHERE ref_id = :refId',
+        { refId: existing.refId },
+        { autoCommit: true },
+      );
+    } finally {
+      await conn.close();
     }
   }
 

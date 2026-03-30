@@ -16,6 +16,8 @@ import {
   regenerateSingleDerivative,
 } from '../services/derivative-generator';
 import refImageRoutes from './ref-image-routes';
+import { getConnection } from '../../db/connection';
+import { getAnchorBlob } from '../../db/queries/character-queries';
 
 const router = Router();
 
@@ -26,18 +28,28 @@ router.use('/', refImageRoutes);
 router.post(
   '/derivatives/generate',
   asyncHandler(async (req: Request, res: Response) => {
-    const { charId, anchorPath, basePrompt } = req.body as {
+    const { charId, basePrompt } = req.body as {
       charId: string;
-      anchorPath: string;
       basePrompt: string;
     };
-    if (!charId || !anchorPath) {
-      res.status(400).json({ success: false, error: 'charId와 anchorPath는 필수입니다' });
+    if (!charId) {
+      res.status(400).json({ success: false, error: 'charId는 필수입니다' });
       return;
     }
 
-    const jobId = startDerivativeGeneration(charId, anchorPath, basePrompt || '');
-    res.json({ success: true, jobId });
+    const conn = await getConnection();
+    try {
+      const anchorBlob = await getAnchorBlob(conn, charId);
+      if (!anchorBlob) {
+        res.status(400).json({ success: false, error: '앵커 이미지를 찾을 수 없습니다' });
+        return;
+      }
+
+      const jobId = startDerivativeGeneration(charId, anchorBlob, basePrompt || '');
+      res.json({ success: true, jobId });
+    } finally {
+      await conn.close();
+    }
   }),
 );
 

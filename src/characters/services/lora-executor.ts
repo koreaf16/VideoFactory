@@ -7,7 +7,6 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
 import { EventEmitter } from 'events';
 import { comfyuiClient } from '../../comfyui/client';
 import {
@@ -27,7 +26,7 @@ import type { LoraTrainingConfig } from '../types/lora.types';
 import { TEST_PROMPTS } from '../types/lora.types';
 import { listDatasetImages } from './lora-dataset';
 import { config } from '../../config';
-import { ensureDir, writeFileBuffer } from '../../common/utils/file-utils';
+import { createThumbnail, restoreImageFromBlob } from '../../common/utils/image-utils';
 import { logger } from '../../common/logger';
 import { execSql, queryOne } from './lora-db-helpers';
 
@@ -75,7 +74,10 @@ export async function executeTraining(
   const images = await listDatasetImages(datasetId);
   if (images.length === 0) throw new Error('데이터셋에 이미지가 없습니다');
   await comfyuiClient.connect();
-  for (const img of images) await comfyuiClient.uploadImage(img.IMAGE_PATH);
+  for (const img of images) {
+    const tempPath = await restoreImageFromBlob(img.IMAGE_BLOB, `train_${datasetId}`);
+    await comfyuiClient.uploadImage(tempPath);
+  }
 
   await execSql(UPDATE_TRAINING_STATUS, { jobId, status: 'training', errorMessage: null });
   const outputName = `lora_${charId}_${jobId.slice(0, 8)}`;
@@ -111,7 +113,6 @@ async function runSingleTest(
   prompt: string,
   seed: number,
   strength: number,
-  outDir: string,
 ): Promise<void> {
   const wf = buildLoraInferenceWorkflow({
     loraFileName: fileName,
@@ -120,18 +121,21 @@ async function runSingleTest(
     loraStrength: strength,
   });
   const pid = await comfyuiClient.submitWorkflow(wf);
-  const results = await comfyuiClient.waitForResult(pid, 120_000);
+  const { images: results } = await comfyuiClient.waitForResult(pid, 120_000);
   if (results.length === 0) return;
   const imgBuf = await downloadComfyImage(results[0]);
-  const imgPath = path.join(outDir, `test_${checkpointId.slice(0, 8)}_s${seed}.png`);
-  await writeFileBuffer(imgPath, imgBuf);
+  
+  // BLOB 및 썸네일 준비
+  const thumbBuf = await createThumbnail(imgBuf);
+
   await execSql(INSERT_TEST_IMAGE, {
     testImageId: randomUUID(),
     checkpointId,
     promptText: prompt,
     seed,
     loraStrength: strength,
-    imagePath: imgPath,
+    imageBlob: imgBuf,
+    thumbnailBlob: thumbBuf,
   });
 }
 
@@ -146,8 +150,6 @@ export async function runTestCheckpoint(
   const row = await queryOne<CheckpointRow>(GET_CHECKPOINT, { checkpointId });
   if (!row) throw new Error(`체크포인트를 찾을 수 없음: ${checkpointId}`);
   const strength = loraStrength ?? 0.7;
-  const outDir = path.resolve('exports', 'lora_tests', charId);
-  await ensureDir(outDir);
   await comfyuiClient.connect();
   for (let i = 0; i < TEST_PROMPTS.length; i++) {
     const prompt = `${triggerWord}, ${TEST_PROMPTS[i]}`;
@@ -157,7 +159,7 @@ export async function runTestCheckpoint(
       total: TEST_PROMPTS.length,
       prompt,
     });
-    await runSingleTest(checkpointId, row.FILE_NAME, prompt, 42 + i, strength, outDir);
+    await runSingleTest(checkpointId, row.FILE_NAME, prompt, 42 + i, strength);
     logger.debug('추론 테스트 완료', { checkpointId, seed: 42 + i });
   }
   events.emit(`test:${checkpointId}`, {
