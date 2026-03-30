@@ -30,6 +30,7 @@ CREATE TABLE characters (
   face_embedding    VECTOR(512, FLOAT32),
   anchor_blob       BLOB,
   anchor_thumbnail  BLOB,
+  prompt_base       VARCHAR2(2000),
   lora_path         VARCHAR2(500),
   created_at        TIMESTAMP       DEFAULT SYSTIMESTAMP
 );
@@ -181,6 +182,15 @@ CREATE TABLE scenes (
   tts_path          VARCHAR2(500),
   quality_score     NUMBER(4,3),
   created_at        TIMESTAMP       DEFAULT SYSTIMESTAMP
+);
+
+-- -----------------------------------------------------------
+-- scene_characters — 씬별 출연 캐릭터
+-- -----------------------------------------------------------
+CREATE TABLE scene_characters (
+  scene_id    NUMBER       REFERENCES scenes(scene_id) ON DELETE CASCADE,
+  char_id     VARCHAR2(50) REFERENCES characters(char_id),
+  PRIMARY KEY (scene_id, char_id)
 );
 
 -- -----------------------------------------------------------

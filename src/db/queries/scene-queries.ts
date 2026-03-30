@@ -63,6 +63,27 @@ export const UPDATE_VIDEO = `
    WHERE scene_id = :sceneId
 `;
 
+export const INSERT_SCENE_CHARACTER = `
+  INSERT INTO scene_characters (scene_id, char_id)
+  VALUES (:sceneId, :charId)
+`;
+
+export const FIND_CHARACTERS_BY_SCENE = `
+  SELECT sc.char_id, c.name
+    FROM scene_characters sc
+    JOIN characters c ON c.char_id = sc.char_id
+   WHERE sc.scene_id = :sceneId
+`;
+
+export const UPDATE_SCENE = `
+  UPDATE scenes
+     SET description   = :description,
+         script        = :script,
+         prompt_en     = :promptEn,
+         motion_prompt = :motionPrompt
+   WHERE scene_id = :sceneId
+`;
+
 // ─── 타입 정의 ──────────────────────────────────────────
 
 interface SceneRow {
@@ -71,9 +92,19 @@ interface SceneRow {
   SCENE_ORDER: number;
   DESCRIPTION: string | null;
   LOCATION_ID: string | null;
+  TIME_OF_DAY: string | null;
+  CAMERA_TYPE: string | null;
+  EMOTION: string | null;
+  DURATION_SEC: number | null;
+  SCRIPT: string | null;
+  PROMPT_EN: string | null;
+  MOTION_PROMPT: string | null;
   STATUS: string;
   KEYFRAME_PATH: string | null;
   VIDEO_PATH: string | null;
+  UPSCALED_PATH: string | null;
+  TTS_PATH: string | null;
+  QUALITY_SCORE: number | null;
   CREATED_AT: Date;
 }
 
@@ -91,26 +122,36 @@ interface SceneInsertData {
   motionPrompt: string | null;
 }
 
+export interface SceneCharacterRow {
+  CHAR_ID: string;
+  NAME: string;
+}
+
 // ─── 쿼리 함수 ──────────────────────────────────────────
 
 export async function findScenesByEpisode(
   conn: oracledb.Connection,
-  epId: number
+  epId: number,
 ): Promise<SceneRow[]> {
-  const result = await conn.execute<SceneRow>(FIND_BY_EPISODE, { epId }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+  const result = await conn.execute<SceneRow>(
+    FIND_BY_EPISODE,
+    { epId },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT },
+  );
   logger.debug('씬 목록 조회', { epId, count: result.rows?.length ?? 0 });
   return result.rows ?? [];
 }
 
 export async function insertScene(
   conn: oracledb.Connection,
-  data: SceneInsertData
+  data: SceneInsertData,
+  autoCommit = true,
 ): Promise<number> {
   const bindVars = {
     ...data,
     sceneId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
   };
-  const result = await conn.execute(INSERT, bindVars, { autoCommit: true });
+  const result = await conn.execute(INSERT, bindVars, { autoCommit });
   const newId = (result.outBinds as { sceneId: number[] }).sceneId[0];
   logger.info('씬 생성', { sceneId: newId, epId: data.epId });
   return newId;
@@ -120,9 +161,13 @@ export async function updateSceneKeyframe(
   conn: oracledb.Connection,
   sceneId: number,
   keyframePath: string,
-  keyframeBlob: Buffer
+  keyframeBlob: Buffer,
 ): Promise<void> {
-  await conn.execute(UPDATE_KEYFRAME, { sceneId, keyframePath, keyframeBlob }, { autoCommit: true });
+  await conn.execute(
+    UPDATE_KEYFRAME,
+    { sceneId, keyframePath, keyframeBlob },
+    { autoCommit: true },
+  );
   logger.info('씬 키프레임 업데이트', { sceneId });
 }
 
@@ -131,8 +176,47 @@ export async function updateSceneVideo(
   sceneId: number,
   videoPath: string,
   upscaledPath: string | null,
-  qualityScore: number | null
+  qualityScore: number | null,
 ): Promise<void> {
-  await conn.execute(UPDATE_VIDEO, { sceneId, videoPath, upscaledPath, qualityScore }, { autoCommit: true });
+  await conn.execute(
+    UPDATE_VIDEO,
+    { sceneId, videoPath, upscaledPath, qualityScore },
+    { autoCommit: true },
+  );
   logger.info('씬 비디오 업데이트', { sceneId });
+}
+
+export async function insertSceneCharacter(
+  conn: oracledb.Connection,
+  sceneId: number,
+  charId: string,
+  autoCommit = true,
+): Promise<void> {
+  await conn.execute(INSERT_SCENE_CHARACTER, { sceneId, charId }, { autoCommit });
+}
+
+export async function findCharactersByScene(
+  conn: oracledb.Connection,
+  sceneId: number,
+): Promise<SceneCharacterRow[]> {
+  const result = await conn.execute<SceneCharacterRow>(
+    FIND_CHARACTERS_BY_SCENE,
+    { sceneId },
+    { outFormat: oracledb.OUT_FORMAT_OBJECT },
+  );
+  return result.rows ?? [];
+}
+
+export async function updateScene(
+  conn: oracledb.Connection,
+  sceneId: number,
+  data: {
+    description: string | null;
+    script: string | null;
+    promptEn: string | null;
+    motionPrompt: string | null;
+  },
+): Promise<void> {
+  await conn.execute(UPDATE_SCENE, { sceneId, ...data }, { autoCommit: true });
+  logger.info('씬 수정', { sceneId });
 }
