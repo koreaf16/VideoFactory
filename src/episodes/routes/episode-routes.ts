@@ -21,6 +21,7 @@ import {
   updateEpisode,
   updateScene,
   approveEpisode,
+  deleteEpisode,
 } from '../services/episode-service';
 import { logger } from '../../common/logger';
 import type { CreateEpisodeRequest } from '../types/episode.types';
@@ -123,6 +124,34 @@ router.post(
     const epId = Number(req.params.epId);
     await approveEpisode(epId);
     res.json({ success: true, status: 'approved' });
+  }),
+);
+
+// ─── 삭제 ───────────────────────────────────────────────────
+
+router.delete(
+  '/:epId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const epId = Number(req.params.epId);
+    if (isNaN(epId)) {
+      res.status(400).json({ success: false, error: '유효하지 않은 에피소드 ID' });
+      return;
+    }
+    try {
+      await deleteEpisode(epId);
+      res.json({ success: true });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('찾을 수 없습니다')) {
+        res.status(404).json({ success: false, error: '에피소드를 찾을 수 없습니다' });
+        return;
+      }
+      if (msg.includes('삭제 불가 상태')) {
+        res.status(400).json({ success: false, error: msg });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 

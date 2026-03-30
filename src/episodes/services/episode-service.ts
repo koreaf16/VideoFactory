@@ -18,6 +18,7 @@ import {
   findByEpNumber,
   updateEpisode as updateEpisodeQuery,
   approveEpisode as approveEpisodeQuery,
+  deleteEpisode as deleteEpisodeQuery,
 } from '../../db/queries/episode-queries';
 import {
   insertScene,
@@ -211,6 +212,24 @@ export async function approveEpisode(epId: number): Promise<void> {
     }
     await approveEpisodeQuery(conn, epId);
     logger.info('에피소드 승인 완료', { epId, prevStatus: ep.STATUS });
+  } finally {
+    await conn.close();
+  }
+}
+
+// ─── 에피소드 삭제 ──────────────────────────────────────────
+
+/** 에피소드를 삭제한다. draft 상태에서만 가능. */
+export async function deleteEpisode(epId: number): Promise<void> {
+  const conn = await getConnection();
+  try {
+    const ep = await findEpisodeById(conn, epId);
+    if (!ep) throw new Error(`에피소드를 찾을 수 없습니다: ${epId}`);
+    if (ep.STATUS !== 'draft') {
+      throw new Error(`삭제 불가 상태입니다: ${ep.STATUS} (허용: draft만)`);
+    }
+    await deleteEpisodeQuery(conn, epId);
+    logger.info('에피소드 삭제 완료', { epId, epNumber: ep.EP_NUMBER });
   } finally {
     await conn.close();
   }

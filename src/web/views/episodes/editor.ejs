@@ -29,7 +29,8 @@
   <div id="scene-list" class="space-y-4 mb-8"></div>
 
   <!-- Bottom actions (approve button, hidden until draft/review) -->
-  <div id="bottom-actions" class="flex items-center justify-end bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-5 hidden">
+  <div id="bottom-actions" class="flex items-center justify-between bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-5 hidden">
+    <button id="btn-delete" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 text-sm font-semibold px-5 py-2.5 rounded-lg transition">삭제</button>
     <button id="btn-approve" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition">승인 &rarr; 영상 생성</button>
   </div>
 </div>
@@ -199,19 +200,19 @@
         // Title display
         var titleDisplay = document.getElementById('ep-title-display');
         if (titleDisplay) {
-          titleDisplay.textContent = 'EP.' + String(ep.EP_NUMBER).padStart(2, '0') + ' 대본 편집';
+          titleDisplay.textContent = 'EP.' + String(ep.epNumber).padStart(2, '0') + ' 대본 편집';
         }
 
         // Fill inputs
         var titleInput = document.getElementById('ep-title');
-        if (titleInput) titleInput.value = ep.TITLE || '';
+        if (titleInput) titleInput.value = ep.title || '';
 
         var synopsisInput = document.getElementById('ep-synopsis');
-        if (synopsisInput) synopsisInput.value = ep.SYNOPSIS || '';
+        if (synopsisInput) synopsisInput.value = ep.synopsis || '';
 
         // Status badge
         var badge = document.getElementById('ep-status-badge');
-        if (badge) applyStatusBadge(badge, (ep.STATUS || '').toLowerCase());
+        if (badge) applyStatusBadge(badge, (ep.status || '').toLowerCase());
 
         // Scene list
         var sceneList = document.getElementById('scene-list');
@@ -227,13 +228,16 @@
         // Show bottom actions for draft or review
         var bottomActions = document.getElementById('bottom-actions');
         if (bottomActions) {
-          var status = (ep.STATUS || '').toLowerCase();
+          var status = (ep.status || '').toLowerCase();
           if (status === 'draft' || status === 'review') {
             bottomActions.classList.remove('hidden');
           } else {
             bottomActions.classList.add('hidden');
           }
         }
+
+        // Store status for delete check
+        window._currentEpStatus = status;
       })
       .catch(function (err) {
         console.error('에피소드 로드 실패:', err);
@@ -280,6 +284,35 @@
       .catch(function (err) {
         console.error('승인 오류:', err);
         alert('승인 중 오류가 발생했습니다.');
+      });
+  });
+
+  // ── Delete ───────────────────────────────────────────────────
+  document.getElementById('btn-delete').addEventListener('click', function () {
+    if (!confirm('정말 이 에피소드를 삭제하시겠습니까?\n(초안 상태의 에피소드만 삭제 가능합니다)')) {
+      return;
+    }
+
+    var btn = document.getElementById('btn-delete');
+    btn.disabled = true;
+    btn.textContent = '삭제 중...';
+
+    fetch('/api/episodes/' + EP_ID, { method: 'DELETE' })
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        if (json.success) {
+          window.location.href = '/episodes';
+        } else {
+          alert('삭제 실패: ' + (json.error || '알 수 없는 오류'));
+          btn.disabled = false;
+          btn.textContent = '삭제';
+        }
+      })
+      .catch(function (err) {
+        console.error('삭제 오류:', err);
+        alert('삭제 중 오류가 발생했습니다.');
+        btn.disabled = false;
+        btn.textContent = '삭제';
       });
   });
 

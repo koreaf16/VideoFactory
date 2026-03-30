@@ -75,6 +75,11 @@ export const FIND_BY_EP_NUMBER = `
   SELECT ep_id FROM episodes WHERE ep_number = :epNumber
 `;
 
+export const DELETE_EPISODE = `
+  DELETE FROM episodes
+   WHERE ep_id = :epId
+`;
+
 // ─── 타입 정의 ──────────────────────────────────────────
 
 interface EpisodeRow {
@@ -187,4 +192,9 @@ export async function listEpisodesByScript(
   );
   logger.debug('스크립트별 에피소드 목록 조회', { scriptId, count: result.rows?.length ?? 0 });
   return result.rows ?? [];
+}
+
+export async function deleteEpisode(conn: oracledb.Connection, epId: number): Promise<void> {
+  await conn.execute(DELETE_EPISODE, { epId }, { autoCommit: true });
+  logger.info('에피소드 삭제', { epId });
 }
