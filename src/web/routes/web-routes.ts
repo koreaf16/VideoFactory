@@ -105,6 +105,16 @@ router.get('/scripts/:scriptId/edit', (req: Request, res: Response) => {
   res.render('scripts/edit', { title: '대본 수정', scriptId: req.params.scriptId });
 });
 
+// ─── 프로덕션 파이프라인 ────────────────────────────────────────
+
+router.get('/pipeline', (_req: Request, res: Response) => {
+  res.render('pipeline/dashboard', { title: '프로덕션 파이프라인' });
+});
+
+router.get('/pipeline/runs/:runId', (req: Request, res: Response) => {
+  res.render('pipeline/run-detail', { title: '프로덕션 상세', runId: req.params.runId });
+});
+
 // ─── 영상 생성 큐 ───────────────────────────────────────────
 
 router.get('/video/queue', (_req: Request, res: Response) => {

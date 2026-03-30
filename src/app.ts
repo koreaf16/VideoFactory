@@ -30,6 +30,7 @@ import episodeRoutes from './episodes/routes/episode-routes';
 import masterScriptRoutes from './master-scripts/routes/master-script-routes';
 import videoRoutes from './video/routes/video-routes';
 import imageRoutes from './common/routes/image-routes';
+import pipelineRoutes from './pipeline/routes/pipeline-routes';
 import healthRoutes from './web/routes/health-routes';
 
 // ─── Express 앱 생성 ────────────────────────────────────────
@@ -69,6 +70,7 @@ app.use('/api/episodes', episodeRoutes);
 app.use('/api/master-scripts', masterScriptRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/api/pipeline', pipelineRoutes);
 app.use('/api/health', healthRoutes);
 
 // ─── 글로벌 에러 핸들러 ─────────────────────────────────────

@@ -1,67 +1,60 @@
-/**
- * @module 데이터베이스 마이그레이션 실행기
- * @description src/db/migrations 폴더의 SQL 파일을 실행한다.
- */
+import { initPool, getConnection, closePool } from '../src/db/connection';
 
-import * as dotenv from "dotenv";
-import * as path from "path";
-import * as fs from "fs";
-import oracledb from "oracledb";
+void (async (): Promise<void> => {
+  await initPool();
+  const conn = await getConnection();
+  process.stdout.write('Connected OK\n');
 
-dotenv.config({ path: path.resolve(__dirname, "..", ".env") });
+  const stmts = [
+    `CREATE TABLE production_runs (
+      run_id          NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      script_id       NUMBER REFERENCES master_scripts(script_id),
+      protagonist_id  VARCHAR2(50) REFERENCES characters(char_id),
+      current_stage   VARCHAR2(32) NOT NULL
+                      CHECK (current_stage IN (
+                        'protagonist_pending','protagonist_visual','script_pending',
+                        'episode_generating','assets_creating','snapshots_generating',
+                        'completed','failed','paused'
+                      )),
+      current_ep_num  NUMBER DEFAULT 0,
+      config_json     CLOB,
+      error_message   VARCHAR2(4000),
+      auto_advance    NUMBER(1) DEFAULT 0,
+      created_at      TIMESTAMP DEFAULT SYSTIMESTAMP,
+      updated_at      TIMESTAMP DEFAULT SYSTIMESTAMP
+    )`,
+    `CREATE TABLE pipeline_steps (
+      step_id       NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      run_id        NUMBER REFERENCES production_runs(run_id),
+      ep_id         NUMBER,
+      step_type     VARCHAR2(64) NOT NULL,
+      step_status   VARCHAR2(32) DEFAULT 'pending'
+                    CHECK (step_status IN ('pending','running','completed','failed','skipped')),
+      input_json    CLOB,
+      output_json   CLOB,
+      error_message VARCHAR2(4000),
+      started_at    TIMESTAMP,
+      completed_at  TIMESTAMP,
+      created_at    TIMESTAMP DEFAULT SYSTIMESTAMP
+    )`,
+    'CREATE INDEX idx_pipeline_steps_run ON pipeline_steps(run_id)',
+    'CREATE INDEX idx_pipeline_steps_ep  ON pipeline_steps(ep_id)',
+    'ALTER TABLE characters ADD (is_protagonist NUMBER(1) DEFAULT 0, recurring NUMBER(1) DEFAULT 1)',
+    'ALTER TABLE locations ADD (recurring NUMBER(1) DEFAULT 1)',
+  ];
 
-const ORACLE_USER = process.env.ORACLE_USER ?? "video";
-const ORACLE_PASSWORD = process.env.ORACLE_PASSWORD ?? "";
-const ORACLE_DSN = process.env.ORACLE_DSN ?? "192.168.0.120:1521/AI_DB";
-
-async function runMigration(filePath: string) {
-  let sql = fs.readFileSync(filePath, "utf8");
-  
-  // Remove single line comments
-  sql = sql.replace(/--.*$/gm, "");
-  // Remove multi-line comments
-  sql = sql.replace(/\/\*[\s\S]*?\*\//g, "");
-
-  const statements = sql
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  let conn;
-  try {
-    conn = await oracledb.getConnection({
-      user: ORACLE_USER,
-      password: ORACLE_PASSWORD,
-      connectString: ORACLE_DSN,
-    });
-
-    console.log(`Executing migration: ${path.basename(filePath)}`);
-
-    for (const statement of statements) {
-      try {
-        console.log(`Running: ${statement.substring(0, 50)}...`);
-        await conn.execute(statement);
-      } catch (err: any) {
-        if (err.errorNum === 955) {
-          console.warn(`  [SKIP] Table already exists`);
-        } else {
-          console.error(`  [ERROR] ${err.message}`);
-          throw err;
-        }
-      }
-    }
-
-    await conn.commit();
-    console.log("Migration completed successfully.");
-  } catch (err) {
-    console.error("Migration failed:", err);
-    process.exit(1);
-  } finally {
-    if (conn) {
-      await conn.close();
+  for (const sql of stmts) {
+    try {
+      await conn.execute(sql);
+      process.stdout.write(`OK: ${sql.substring(0, 70).replace(/\n/g, ' ')}\n`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message.split('\n')[0] : String(e);
+      process.stdout.write(`ERR: ${msg}\n`);
     }
   }
-}
-
-const migrationFile = path.resolve(__dirname, "..", "src", "db", "migrations", "20260330_lora_tables.sql");
-runMigration(migrationFile);
+  await conn.execute('COMMIT');
+  await conn.close();
+  await closePool();
+  process.stdout.write('Migration complete\n');
+  process.exit(0);
+})();
