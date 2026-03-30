@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "videofactory": {
+      "command": "npx",
+      "args": ["ts-node", "src/mcp/server.ts"],
+      "cwd": "C:\\VideoFactory",
+      "env": {
+        "API_BASE_URL": "http://localhost:2020"
+      }
+    }
+  }
+}
