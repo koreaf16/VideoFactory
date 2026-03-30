@@ -1,14 +1,25 @@
 /**
- * @module 장소 앵글 변형 프리셋
- * @description 장소 배경의 다양한 앵글 변형을 위한 Kontext 편집 프롬프트.
+ * @module 장소 앵글 프리셋
+ * @description 카메라 앵글 ID와 한국어 라벨, 재생성 힌트를 매핑한다.
  *
+ * ┌──────────────┐     ┌────────────────┐
+ * │ CAMERA_ANGLES│ ──→ │ LOCATION_PRESETS│
+ * │  (template)  │     │  cameraId      │
+ * └──────────────┘     │  angle, label  │
+ *                      │  regenHint     │
+ *                      └────────────────┘
+ *
+ * @dependencies blender-prompt
  * @author AI Video Factory
  */
 
+import { CAMERA_ANGLES } from '../templates/blender-prompt';
+
 export interface LocationPreset {
-  label: string;
-  angle: string;
-  promptSuffix: string;
+  readonly cameraId: string;
+  readonly angle: string;
+  readonly label: string;
+  readonly regenHint: string;
 }
 
 export interface LocationDerivResult {
@@ -24,6 +35,8 @@ export interface LocationDerivJob {
   jobId: string;
   locationId: string;
   anchorPath: string;
+  /** 장소 설명 프롬프트 — txt2img 앵글 변형 생성에 사용 */
+  promptBase: string;
   status: 'preparing' | 'generating' | 'completed' | 'failed' | 'stopped';
   total: number;
   completed: number;
@@ -32,68 +45,92 @@ export interface LocationDerivJob {
   shouldStop?: boolean;
 }
 
-const ROOM_IDENTITY =
-  'same room, same furniture layout, same wall colors, same decoration, empty room, no people';
-
-export const LOCATION_PRESETS: LocationPreset[] = [
+export const LOCATION_PRESETS: readonly LocationPreset[] = [
   {
-    label: '정면 전체',
+    cameraId: 'cam01_front',
     angle: 'front',
-    promptSuffix: `${ROOM_IDENTITY}, front view, wide angle, showing full room layout`,
+    label: '정면 전체',
+    regenHint: 'wide angle front view, showing full room layout',
   },
   {
-    label: '좌측 회전',
-    angle: 'left',
-    promptSuffix: `${ROOM_IDENTITY}, camera rotated slightly to the left, showing more of the left wall`,
+    cameraId: 'cam02_left45',
+    angle: 'left45',
+    label: '좌측 45도',
+    regenHint: 'rotated 45 degrees left view',
   },
   {
-    label: '우측 회전',
-    angle: 'right',
-    promptSuffix: `${ROOM_IDENTITY}, camera rotated slightly to the right, showing more of the right wall`,
+    cameraId: 'cam03_right45',
+    angle: 'right45',
+    label: '우측 45도',
+    regenHint: 'rotated 45 degrees right view',
   },
   {
-    label: '역방향',
+    cameraId: 'cam04_reverse',
     angle: 'reverse',
-    promptSuffix: `${ROOM_IDENTITY}, camera is now at the back of the room looking toward the entrance door, reverse angle`,
+    label: '역방향',
+    regenHint: 'reverse view toward entrance',
   },
   {
-    label: '대각선',
+    cameraId: 'cam05_diagonal',
     angle: 'diagonal',
-    promptSuffix: `${ROOM_IDENTITY}, camera in the corner looking diagonally across the room`,
+    label: '대각선',
+    regenHint: 'corner-to-corner diagonal view',
   },
   {
-    label: '위에서 내려다보기',
+    cameraId: 'cam06_high',
     angle: 'high',
-    promptSuffix: `${ROOM_IDENTITY}, high angle shot looking down, bird's eye perspective`,
+    label: '하이 앵글',
+    regenHint: 'overhead high angle looking down',
   },
   {
-    label: '아래에서 올려다보기',
+    cameraId: 'cam07_low_up',
     angle: 'low_up',
-    promptSuffix: `${ROOM_IDENTITY}, low angle shot looking up, dramatic perspective from below`,
+    label: '로우 앵글',
+    regenHint: 'low angle looking up toward ceiling',
   },
   {
-    label: '낮은 앵글',
+    cameraId: 'cam08_low',
     angle: 'low',
-    promptSuffix: `${ROOM_IDENTITY}, floor level low angle, showing furniture from ground perspective`,
+    label: '낮은 앵글',
+    regenHint: 'ground level horizontal view',
   },
   {
-    label: '창문 클로즈업',
-    angle: 'closeup_window',
-    promptSuffix: `${ROOM_IDENTITY}, close-up of the window area, showing window frame and curtains, same lighting`,
+    cameraId: 'cam09_closeup_a',
+    angle: 'closeup_a',
+    label: '클로즈업 A',
+    regenHint: 'close-up of main feature wall',
   },
   {
-    label: '벽면 클로즈업',
-    angle: 'closeup_wall',
-    promptSuffix: `${ROOM_IDENTITY}, close-up of the main wall feature, showing wall details and decorations`,
+    cameraId: 'cam10_closeup_b',
+    angle: 'closeup_b',
+    label: '클로즈업 B',
+    regenHint: 'close-up of secondary feature',
   },
   {
-    label: '가구 클로즈업',
-    angle: 'closeup_furniture',
-    promptSuffix: `${ROOM_IDENTITY}, close-up of the main furniture piece, detailed texture, same style`,
+    cameraId: 'cam11_closeup_c',
+    angle: 'closeup_c',
+    label: '클로즈업 C',
+    regenHint: 'close-up of furniture/central element',
   },
   {
-    label: '입구 클로즈업',
-    angle: 'closeup_entrance',
-    promptSuffix: `${ROOM_IDENTITY}, close-up of the door and entrance area, showing doorframe details`,
+    cameraId: 'cam12_closeup_d',
+    angle: 'closeup_d',
+    label: '클로즈업 D',
+    regenHint: 'close-up of entrance/door area',
   },
-];
+] as const;
+
+// Runtime validation: must stay in sync with CAMERA_ANGLES
+if (LOCATION_PRESETS.length !== CAMERA_ANGLES.length) {
+  throw new Error(
+    `LOCATION_PRESETS length (${LOCATION_PRESETS.length}) does not match CAMERA_ANGLES length (${CAMERA_ANGLES.length})`,
+  );
+}
+
+export function getPresetByCameraId(cameraId: string): LocationPreset | undefined {
+  return LOCATION_PRESETS.find((p) => p.cameraId === cameraId);
+}
+
+export function getPresetByAngle(angle: string): LocationPreset | undefined {
+  return LOCATION_PRESETS.find((p) => p.angle === angle);
+}

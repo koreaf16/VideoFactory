@@ -156,8 +156,8 @@ router.post(
       if (fs.existsSync(thumbP)) fs.unlinkSync(thumbP);
 
       const editPrompt = modifyPrompt
-        ? `${preset.promptSuffix} Additionally: ${modifyPrompt}`
-        : preset.promptSuffix;
+        ? `${preset.regenHint} Additionally: ${modifyPrompt}`
+        : preset.regenHint;
 
       const seed = Math.floor(Math.random() * 999999999);
       await comfyuiClient.connect();
