@@ -32,11 +32,15 @@ async function requireRun(conn: oracledb.Connection, runId: number): Promise<pq.
 export async function createRun(req: CreateRunRequest): Promise<ProductionRun> {
   const conn = await getConnection();
   try {
+    const configJson = JSON.stringify({
+      ...(req.config ?? {}),
+      ...(req.protagonistPreset?.name ? { protagonistName: req.protagonistPreset.name } : {}),
+    });
     const runId = await pq.insertRun(conn, {
       scriptId: req.scriptId ?? null,
       protagonistId: req.protagonistId ?? null,
       currentStage: PipelineStage.PROTAGONIST_PENDING,
-      configJson: req.config ? JSON.stringify(req.config) : null,
+      configJson,
       autoAdvance: 0,
     });
     if (req.protagonistPreset) {

@@ -56,6 +56,15 @@
     failed: 'bg-red-500/20 text-red-400',
   };
   var stepStatusLabels = { pending: '대기', running: '진행중', completed: '완료', failed: '실패', skipped: '건너뜀' };
+  var stepTypeLabels = {
+    protagonist_preset: '주인공 프리셋',
+    protagonist_pending: '주인공 대기',
+    protagonist_visual: '주인공 비주얼',
+    script_pending: '대본 대기',
+    episode_generating: '에피소드 생성',
+    assets_creating: '자산 생성',
+    snapshots_generating: '스냅샷 생성',
+  };
 
   function escapeHtml(str) {
     var div = document.createElement('div');
@@ -81,7 +90,7 @@
       else circle.className = 'w-4 h-4 rounded-full bg-[#353437]';
 
       var label = document.createElement('span');
-      label.className = 'text-[10px] mt-1 whitespace-nowrap ' +
+      label.className = 'text-[11px] mt-1 whitespace-nowrap ' +
         (i < currentIdx ? 'text-green-400' : i === currentIdx ? 'text-[#d2bbff] font-semibold' : 'text-[#958da1]');
       label.textContent = s.label;
 
@@ -284,7 +293,7 @@
       row.className = 'flex items-center justify-between text-xs py-1 border-b border-[#2a2a2c]';
       var name = document.createElement('span');
       name.className = 'text-[#e5e1e4]';
-      name.textContent = s.stepType;
+      name.textContent = stepTypeLabels[s.stepType] || s.stepType;
       var status = document.createElement('span');
       status.className = s.stepStatus === 'completed' ? 'text-green-400' : s.stepStatus === 'failed' ? 'text-red-400' : s.stepStatus === 'running' ? 'text-cyan-400' : 'text-[#958da1]';
       status.textContent = stepStatusLabels[s.stepStatus] || s.stepStatus;

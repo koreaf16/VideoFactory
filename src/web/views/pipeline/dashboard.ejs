@@ -90,7 +90,8 @@
 
     var title = document.createElement('h3');
     title.className = 'text-base font-semibold text-[#e5e1e4] leading-snug';
-    title.textContent = 'Run #' + run.runId;
+    var protName = (run.configJson && run.configJson.protagonistName) ? run.configJson.protagonistName : null;
+    title.textContent = protName ? protName + ' (#' + run.runId + ')' : 'Run #' + run.runId;
     header.appendChild(title);
 
     var badge = document.createElement('span');

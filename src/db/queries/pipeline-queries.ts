@@ -17,7 +17,7 @@ const FIND_RUN_BY_ID = `
 `;
 const LIST_RUNS = `
   SELECT run_id, script_id, protagonist_id, current_stage,
-         current_ep_num, auto_advance, created_at, updated_at
+         current_ep_num, config_json, auto_advance, created_at, updated_at
     FROM production_runs ORDER BY created_at DESC FETCH FIRST 50 ROWS ONLY
 `;
 const UPDATE_STAGE = `UPDATE production_runs
