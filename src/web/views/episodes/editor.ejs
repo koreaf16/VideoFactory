@@ -1,128 +1,289 @@
 <div>
-  <!-- Header -->
+  <!-- Header with back link + title + status badge -->
   <div class="flex items-center justify-between mb-6">
     <div>
       <a href="/episodes" class="text-xs text-[#ccc3d8] hover:text-[#d2bbff] transition mb-2 inline-block">&larr; 에피소드 목록</a>
-      <h2 class="text-3xl font-headline font-extrabold text-[#e5e1e4]">EP.01 대본 편집</h2>
+      <h2 id="ep-title-display" class="text-3xl font-headline font-extrabold text-[#e5e1e4]">로딩 중...</h2>
     </div>
-    <div class="flex items-center gap-3">
-      <span class="text-[10px] bg-green-500/20 text-green-400 px-2.5 py-1 rounded-full font-semibold">완료</span>
-    </div>
+    <span id="ep-status-badge" class="text-[10px] px-2.5 py-1 rounded-full font-semibold"></span>
   </div>
 
-  <!-- 에피소드 메타 -->
+  <!-- Episode meta edit (title + synopsis + save button) -->
   <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-5 mb-6">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
         <label class="block text-xs text-[#ccc3d8] mb-1.5">에피소드 제목</label>
-        <input type="text" value="이세계에 떨어진 유튜버" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+        <input id="ep-title" type="text" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
       </div>
       <div>
         <label class="block text-xs text-[#ccc3d8] mb-1.5">시놉시스</label>
-        <input type="text" value="현실 세계의 유튜버 한소율이 이세계로 전이된 첫날의 이야기" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
+        <input id="ep-synopsis" type="text" class="w-full bg-[#2a2a2c] border border-[#353437] rounded-lg px-4 py-2.5 text-sm text-[#e5e1e4] focus:outline-none focus:border-[#7c3aed]">
       </div>
+    </div>
+    <div class="mt-3 text-right">
+      <button id="btn-save-meta" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">저장</button>
     </div>
   </div>
 
-  <!-- 씬 카드 목록 -->
-  <div class="space-y-4 mb-8">
-    <!-- 씬 1 -->
-    <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-3 bg-[#2a2a2c]/50 border-b border-[#2a2a2c]">
-        <span class="text-sm font-semibold text-[#d2bbff]">씬 1</span>
-        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">숲 속 공터</span>
-        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">낮</span>
-        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">와이드</span>
-        <div class="ml-auto flex gap-2">
-          <button class="text-[10px] text-[#ccc3d8] hover:text-[#d2bbff] transition">씬 재생성</button>
-          <button class="text-[10px] text-red-400 hover:text-red-300 transition">삭제</button>
-        </div>
-      </div>
-      <div class="p-5 space-y-3">
-        <div class="flex items-start gap-3">
-          <span class="text-[10px] bg-[#7c3aed]/20 text-[#d2bbff] px-2 py-0.5 rounded flex-shrink-0 mt-0.5">나레이션</span>
-          <p class="text-sm text-[#e5e1e4] leading-relaxed">어둠 속에서 눈을 뜬 소율. 익숙하지 않은 숲의 소리가 귓가를 감싼다.</p>
-        </div>
-        <div class="flex items-start gap-3">
-          <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">한소율</span>
-          <p class="text-sm text-[#e5e1e4] leading-relaxed">"...여기가 어디지? 분명 방에서 편집하고 있었는데..."</p>
-        </div>
-        <details class="mt-3">
-          <summary class="text-[10px] text-[#ccc3d8]/60 cursor-pointer hover:text-[#ccc3d8] transition">프롬프트 보기</summary>
-          <div class="mt-2 bg-[#2a2a2c] rounded-lg p-3">
-            <p class="text-[11px] text-[#ccc3d8] font-mono leading-relaxed">A young Korean woman with long dark hair waking up in an enchanted forest clearing, golden sunlight filtering through ancient trees, fantasy art style...</p>
-          </div>
-        </details>
-      </div>
-    </div>
+  <!-- Scene cards (dynamically populated) -->
+  <div id="scene-list" class="space-y-4 mb-8"></div>
 
-    <!-- 씬 2 -->
-    <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-3 bg-[#2a2a2c]/50 border-b border-[#2a2a2c]">
-        <span class="text-sm font-semibold text-[#d2bbff]">씬 2</span>
-        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">숲 속 공터</span>
-        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">낮</span>
-        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">클로즈업</span>
-        <div class="ml-auto flex gap-2">
-          <button class="text-[10px] text-[#ccc3d8] hover:text-[#d2bbff] transition">씬 재생성</button>
-          <button class="text-[10px] text-red-400 hover:text-red-300 transition">삭제</button>
-        </div>
-      </div>
-      <div class="p-5 space-y-3">
-        <div class="flex items-start gap-3">
-          <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">한소율</span>
-          <p class="text-sm text-[#e5e1e4] leading-relaxed">"혹시... 이세계? 아니 설마. 그런 건 만화에서나..."</p>
-        </div>
-        <div class="flex items-start gap-3">
-          <span class="text-[10px] bg-[#7c3aed]/20 text-[#d2bbff] px-2 py-0.5 rounded flex-shrink-0 mt-0.5">나레이션</span>
-          <p class="text-sm text-[#e5e1e4] leading-relaxed">그때, 반짝이는 작은 빛이 소율 앞에 나타난다.</p>
-        </div>
-        <details class="mt-3">
-          <summary class="text-[10px] text-[#ccc3d8]/60 cursor-pointer hover:text-[#ccc3d8] transition">프롬프트 보기</summary>
-          <div class="mt-2 bg-[#2a2a2c] rounded-lg p-3">
-            <p class="text-[11px] text-[#ccc3d8] font-mono leading-relaxed">Close-up of a young Korean woman looking around confused in a magical forest, a small glowing fairy approaching...</p>
-          </div>
-        </details>
-      </div>
-    </div>
-
-    <!-- 씬 3 -->
-    <div class="bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-3 bg-[#2a2a2c]/50 border-b border-[#2a2a2c]">
-        <span class="text-sm font-semibold text-[#d2bbff]">씬 3</span>
-        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">숲 속 공터</span>
-        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">낮</span>
-        <span class="text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded">미디엄</span>
-        <div class="ml-auto flex gap-2">
-          <button class="text-[10px] text-[#ccc3d8] hover:text-[#d2bbff] transition">씬 재생성</button>
-          <button class="text-[10px] text-red-400 hover:text-red-300 transition">삭제</button>
-        </div>
-      </div>
-      <div class="p-5 space-y-3">
-        <div class="flex items-start gap-3">
-          <span class="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">별이</span>
-          <p class="text-sm text-[#e5e1e4] leading-relaxed">"안녕! 나는 별이야. 너를 기다리고 있었어!"</p>
-        </div>
-        <div class="flex items-start gap-3">
-          <span class="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">한소율</span>
-          <p class="text-sm text-[#e5e1e4] leading-relaxed">"어... 말하는 빛? 내가 미친 건가?"</p>
-        </div>
-        <details class="mt-3">
-          <summary class="text-[10px] text-[#ccc3d8]/60 cursor-pointer hover:text-[#ccc3d8] transition">프롬프트 보기</summary>
-          <div class="mt-2 bg-[#2a2a2c] rounded-lg p-3">
-            <p class="text-[11px] text-[#ccc3d8] font-mono leading-relaxed">A cute glowing fairy introducing herself to a surprised young woman, magical forest background, warm lighting...</p>
-          </div>
-        </details>
-      </div>
-    </div>
-  </div>
-
-  <!-- 하단 액션 -->
-  <div class="flex items-center justify-between bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-5">
-    <button class="bg-[#2a2a2c] hover:bg-[#353437] text-[#e5e1e4] text-sm font-semibold px-5 py-2.5 rounded-lg transition">전체 재생성</button>
-    <button class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition flex items-center gap-2">
-      승인 &rarr; 영상 생성
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-    </button>
+  <!-- Bottom actions (approve button, hidden until draft/review) -->
+  <div id="bottom-actions" class="flex items-center justify-end bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] p-5 hidden">
+    <button id="btn-approve" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition">승인 &rarr; 영상 생성</button>
   </div>
 </div>
+
+<script>
+(function () {
+  var EP_ID = <%= epId %>;
+
+  // ── Status badge helper ──────────────────────────────────────
+  var STATUS_LABELS = {
+    draft:     { text: '초안', bg: 'bg-yellow-500/20', color: 'text-yellow-400' },
+    review:    { text: '검토 중', bg: 'bg-blue-500/20',   color: 'text-blue-400' },
+    approved:  { text: '승인됨', bg: 'bg-green-500/20',  color: 'text-green-400' },
+    completed: { text: '완료',   bg: 'bg-green-500/20',  color: 'text-green-400' },
+  };
+
+  function applyStatusBadge(el, status) {
+    var cfg = STATUS_LABELS[status] || { text: status, bg: 'bg-[#353437]', color: 'text-[#ccc3d8]' };
+    el.textContent = cfg.text;
+    el.className = 'text-[10px] px-2.5 py-1 rounded-full font-semibold ' + cfg.bg + ' ' + cfg.color;
+  }
+
+  function makeBadge(text, extraClass) {
+    var span = document.createElement('span');
+    span.textContent = text;
+    span.className = 'text-[10px] px-2 py-0.5 rounded ' + (extraClass || 'bg-[#353437] text-[#ccc3d8]');
+    return span;
+  }
+
+  // ── Render a single scene card (DOM API only, no innerHTML with data) ──
+  function renderSceneCard(scene) {
+    var card = document.createElement('div');
+    card.className = 'bg-[#1b1b1d] rounded-lg border border-[#2a2a2c] overflow-hidden';
+
+    // ── Header ──
+    var header = document.createElement('div');
+    header.className = 'flex items-center gap-3 px-5 py-3 bg-[#2a2a2c]/50 border-b border-[#2a2a2c] flex-wrap';
+
+    var sceneLabel = document.createElement('span');
+    sceneLabel.textContent = '씬 ' + scene.sceneOrder;
+    sceneLabel.className = 'text-sm font-semibold text-[#d2bbff]';
+    header.appendChild(sceneLabel);
+
+    if (scene.locationId) {
+      header.appendChild(makeBadge(scene.locationId));
+    }
+    if (scene.timeOfDay) {
+      header.appendChild(makeBadge(scene.timeOfDay));
+    }
+    if (scene.cameraType) {
+      header.appendChild(makeBadge(scene.cameraType));
+    }
+
+    // Character name badges
+    if (Array.isArray(scene.characters)) {
+      scene.characters.forEach(function (ch) {
+        header.appendChild(makeBadge(ch.name || ch.charId, 'bg-[#7c3aed]/20 text-[#d2bbff]'));
+      });
+    }
+
+    card.appendChild(header);
+
+    // ── Body ──
+    var body = document.createElement('div');
+    body.className = 'p-5 space-y-3';
+
+    // Description (italic)
+    if (scene.description) {
+      var descRow = document.createElement('div');
+      descRow.className = 'flex items-start gap-3';
+
+      var descLabel = document.createElement('span');
+      descLabel.textContent = '설명';
+      descLabel.className = 'text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded flex-shrink-0 mt-0.5';
+      descRow.appendChild(descLabel);
+
+      var descText = document.createElement('p');
+      descText.textContent = scene.description;
+      descText.className = 'text-sm text-[#e5e1e4] leading-relaxed italic';
+      descRow.appendChild(descText);
+
+      body.appendChild(descRow);
+    }
+
+    // Direction
+    var direction = scene.script && scene.script.direction;
+    if (direction) {
+      var dirRow = document.createElement('div');
+      dirRow.className = 'flex items-start gap-3';
+
+      var dirLabel = document.createElement('span');
+      dirLabel.textContent = '지문';
+      dirLabel.className = 'text-[10px] bg-[#7c3aed]/20 text-[#d2bbff] px-2 py-0.5 rounded flex-shrink-0 mt-0.5';
+      dirRow.appendChild(dirLabel);
+
+      var dirText = document.createElement('p');
+      dirText.textContent = direction;
+      dirText.className = 'text-sm text-[#e5e1e4] leading-relaxed';
+      dirRow.appendChild(dirText);
+
+      body.appendChild(dirRow);
+    }
+
+    // Dialogue lines
+    var dialogues = scene.script && scene.script.dialogues;
+    if (Array.isArray(dialogues)) {
+      dialogues.forEach(function (dlg) {
+        var dlgRow = document.createElement('div');
+        dlgRow.className = 'flex items-start gap-3';
+
+        var charLabel = document.createElement('span');
+        charLabel.textContent = dlg.character || '';
+        charLabel.className = 'text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded flex-shrink-0 mt-0.5';
+        dlgRow.appendChild(charLabel);
+
+        if (dlg.emotion) {
+          var emoLabel = document.createElement('span');
+          emoLabel.textContent = dlg.emotion;
+          emoLabel.className = 'text-[10px] bg-[#353437] text-[#ccc3d8] px-2 py-0.5 rounded flex-shrink-0 mt-0.5';
+          dlgRow.appendChild(emoLabel);
+        }
+
+        var lineText = document.createElement('p');
+        lineText.textContent = dlg.line || '';
+        lineText.className = 'text-sm text-[#e5e1e4] leading-relaxed';
+        dlgRow.appendChild(lineText);
+
+        body.appendChild(dlgRow);
+      });
+    }
+
+    // Collapsible prompt preview
+    var promptText = scene.promptEn || scene.motionPrompt;
+    if (promptText) {
+      var details = document.createElement('details');
+      details.className = 'mt-3';
+
+      var summary = document.createElement('summary');
+      summary.textContent = '프롬프트 보기';
+      summary.className = 'text-[10px] text-[#ccc3d8]/60 cursor-pointer hover:text-[#ccc3d8] transition';
+      details.appendChild(summary);
+
+      var promptBox = document.createElement('div');
+      promptBox.className = 'mt-2 bg-[#2a2a2c] rounded-lg p-3';
+
+      var promptPre = document.createElement('p');
+      promptPre.textContent = promptText;
+      promptPre.className = 'text-[11px] text-[#ccc3d8] font-mono leading-relaxed';
+      promptBox.appendChild(promptPre);
+
+      details.appendChild(promptBox);
+      body.appendChild(details);
+    }
+
+    card.appendChild(body);
+    return card;
+  }
+
+  // ── Load episode from API ────────────────────────────────────
+  function loadEpisode() {
+    fetch('/api/episodes/' + EP_ID)
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        if (!json.success) throw new Error('API error');
+        var ep = json.data;
+
+        // Title display
+        var titleDisplay = document.getElementById('ep-title-display');
+        if (titleDisplay) {
+          titleDisplay.textContent = 'EP.' + String(ep.EP_NUMBER).padStart(2, '0') + ' 대본 편집';
+        }
+
+        // Fill inputs
+        var titleInput = document.getElementById('ep-title');
+        if (titleInput) titleInput.value = ep.TITLE || '';
+
+        var synopsisInput = document.getElementById('ep-synopsis');
+        if (synopsisInput) synopsisInput.value = ep.SYNOPSIS || '';
+
+        // Status badge
+        var badge = document.getElementById('ep-status-badge');
+        if (badge) applyStatusBadge(badge, (ep.STATUS || '').toLowerCase());
+
+        // Scene list
+        var sceneList = document.getElementById('scene-list');
+        if (sceneList) {
+          sceneList.textContent = '';
+          if (Array.isArray(ep.scenes)) {
+            ep.scenes.forEach(function (scene) {
+              sceneList.appendChild(renderSceneCard(scene));
+            });
+          }
+        }
+
+        // Show bottom actions for draft or review
+        var bottomActions = document.getElementById('bottom-actions');
+        if (bottomActions) {
+          var status = (ep.STATUS || '').toLowerCase();
+          if (status === 'draft' || status === 'review') {
+            bottomActions.classList.remove('hidden');
+          } else {
+            bottomActions.classList.add('hidden');
+          }
+        }
+      })
+      .catch(function (err) {
+        console.error('에피소드 로드 실패:', err);
+        var titleDisplay = document.getElementById('ep-title-display');
+        if (titleDisplay) titleDisplay.textContent = '로드 실패';
+      });
+  }
+
+  // ── Save meta ────────────────────────────────────────────────
+  document.getElementById('btn-save-meta').addEventListener('click', function () {
+    var title = document.getElementById('ep-title').value;
+    var synopsis = document.getElementById('ep-synopsis').value;
+
+    fetch('/api/episodes/' + EP_ID, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title, synopsis: synopsis }),
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        if (json.success) {
+          alert('저장되었습니다.');
+        } else {
+          alert('저장 실패: ' + (json.message || '알 수 없는 오류'));
+        }
+      })
+      .catch(function (err) {
+        console.error('저장 오류:', err);
+        alert('저장 중 오류가 발생했습니다.');
+      });
+  });
+
+  // ── Approve ──────────────────────────────────────────────────
+  document.getElementById('btn-approve').addEventListener('click', function () {
+    fetch('/api/episodes/' + EP_ID + '/approve', { method: 'POST' })
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        if (json.success) {
+          location.reload();
+        } else {
+          alert('승인 실패: ' + (json.message || '알 수 없는 오류'));
+        }
+      })
+      .catch(function (err) {
+        console.error('승인 오류:', err);
+        alert('승인 중 오류가 발생했습니다.');
+      });
+  });
+
+  // ── Init ─────────────────────────────────────────────────────
+  loadEpisode();
+}());
+</script>

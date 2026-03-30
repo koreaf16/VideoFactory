@@ -71,8 +71,8 @@ router.get('/episodes', (_req: Request, res: Response) => {
   res.render('episodes/list', { title: '에피소드 목록' });
 });
 
-router.get('/episodes/:epId/edit', (_req: Request, res: Response) => {
-  res.render('episodes/editor', { title: '대본 편집' });
+router.get('/episodes/:epId/edit', (req: Request, res: Response) => {
+  res.render('episodes/editor', { title: '대본 편집', epId: req.params.epId });
 });
 
 // ─── 영상 생성 큐 ───────────────────────────────────────────
